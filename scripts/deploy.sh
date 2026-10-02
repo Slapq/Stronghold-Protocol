@@ -29,7 +29,9 @@
 #   -y, --yes            do not ask questions (install Docker when missing, accept defaults)
 #
 # Env: DOCKER_MIRROR=Aliyun|AzureChinaCloud — mirror for the Docker install script (servers in mainland China).
-set -euo pipefail
+set -Eeuo pipefail
+# never exit silently: name the command that failed
+trap 'rc=$?; printf "\n错误: scripts/deploy.sh 第 %s 行的命令失败（退出码 %s）：%s\n" "$LINENO" "$rc" "$BASH_COMMAND" >&2' ERR
 
 cd "$(dirname "$0")/.."
 ROOT=$PWD

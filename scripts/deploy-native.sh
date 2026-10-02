@@ -31,7 +31,9 @@
 #   --npm-registry URL   npm registry (default https://registry.npmmirror.com)
 #   --node-mirror URL    Node.js download mirror (default https://npmmirror.com/mirrors/node)
 #   -y, --yes            do not ask questions
-set -euo pipefail
+set -Eeuo pipefail
+# never exit silently: name the command that failed
+trap 'rc=$?; printf "\n错误: scripts/deploy-native.sh 第 %s 行的命令失败（退出码 %s）：%s\n" "$LINENO" "$rc" "$BASH_COMMAND" >&2' ERR
 
 cd "$(dirname "$0")/.."
 ROOT=$PWD
@@ -94,7 +96,8 @@ is_public_ipv4() {
 
 port_owner() { # port_owner PORT [ADDR] → process name listening there (empty = free)
   command -v ss >/dev/null 2>&1 || return 0
-  ss -ltnpH "( sport = :$1 )" 2>/dev/null | grep -o 'users:(("[^"]*"' | head -1 | sed 's/users:(("//'
+  # (a free port matches nothing: never let that fail the caller under set -e / pipefail)
+  ss -ltnpH "( sport = :$1 )" 2>/dev/null | grep -o 'users:(("[^"]*"' | head -1 | sed 's/users:(("//; s/"$//' || true
 }
 
 as_svc() { runuser -u "$SVC_USER" -- "$@"; }
@@ -137,7 +140,7 @@ ensure_node() {
   a=$(arch); [ "$a" = amd64 ] && a=x64
   say "安装 Node.js $NODE_MAJOR（$SP_NODE_MIRROR）…"
   sums=$(fetch "$SP_NODE_MIRROR/latest-v$NODE_MAJOR.x/SHASUMS256.txt") || die "无法从 $SP_NODE_MIRROR 获取 Node.js 版本列表（换一个 --node-mirror 试试）"
-  line=$(printf '%s\n' "$sums" | grep -E " node-v$NODE_MAJOR\.[0-9.]+-linux-$a\.tar\.gz$" | head -1)
+  line=$(printf '%s\n' "$sums" | grep -E " node-v$NODE_MAJOR\.[0-9.]+-linux-$a\.tar\.gz$" | head -1 || true)
   [ -n "$line" ] || die "镜像里找不到 linux-$a 的 Node.js $NODE_MAJOR"
   sha=${line%% *}; file=${line##* }
   tmp=$(mktemp -d)
