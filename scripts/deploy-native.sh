@@ -110,12 +110,16 @@ caddy_global() {
   printf '\tadmin unix//run/stronghold-caddy/admin.sock\n'
   # an IP certificate: browsers send no SNI for IP addresses, and behind the cloud's NAT the local address is private
   [ -z "$SP_DOMAIN" ] && printf '\tdefault_sni %s\n' "$SP_IP"
+  # the internal fallback CA below must not try to install itself into the system trust store (no root; noise)
+  [ -z "$SP_DOMAIN" ] && printf '\tskip_install_trust\n'
   return 0
 }
 caddy_tls() {
   [ -n "$SP_BIND" ] && printf '\tbind %s\n' "$SP_BIND"
-  # Let's Encrypt issues IP-address certificates only with the short-lived profile (6 days; Caddy renews them)
-  [ -z "$SP_DOMAIN" ] && printf '\ttls {\n\t\tissuer acme {\n\t\t\tprofile shortlived\n\t\t}\n\t}\n'
+  # Let's Encrypt issues IP-address certificates only with the short-lived profile (6 days; Caddy renews them).
+  # Mainland IDCs often block port 80 and parts of the validation paths: then Caddy falls back to its own CA (the
+  # browser warns once per visitor) and retries Let's Encrypt at every renewal of that 12-hour certificate.
+  [ -z "$SP_DOMAIN" ] && printf '\ttls {\n\t\tissuer acme {\n\t\t\tprofile shortlived\n\t\t}\n\t\tissuer internal\n\t}\n'
   return 0
 }
 site_url() { if [ -n "$SP_DOMAIN" ]; then printf 'https://%s/' "$SP_DOMAIN"; else printf 'https://%s/' "$SP_IP"; fi; }
@@ -322,9 +326,18 @@ wait_ready() {
   say "游戏服务已启动（127.0.0.1:$SP_PORT）"
   target=${SP_BIND:-127.0.0.1}
   say "等待 HTTPS 证书（Let's Encrypt 需要从外网访问 $(site_url) 的 80 / 443 端口）…"
+  local insecure
   for i in $(seq 1 45); do
     code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 4 --connect-to "${SP_DOMAIN:-$SP_IP}:443:$target:443" "$(site_url)healthz" 2>/dev/null || true)
     if [ -n "$code" ] && [ "$code" != 000 ]; then say "HTTPS 证书已生效（$(site_url)，响应 $code）"; return 0; fi
+    # Let's Encrypt failed and Caddy serves its own certificate: playable now, the real one may follow later
+    insecure=$(curl -sk -o /dev/null -w '%{http_code}' --max-time 4 --connect-to "${SP_DOMAIN:-$SP_IP}:443:$target:443" "$(site_url)healthz" 2>/dev/null || true)
+    if [ -z "$SP_DOMAIN" ] && [ "$i" -ge 20 ] && [ -n "$insecure" ] && [ "$insecure" != 000 ]; then
+      warn "Let's Encrypt 暂时没有签下来（机房常拦 80 端口、跨境验证不稳定），现在用的是临时自签证书：
+  朋友打开 $(site_url) 时浏览器会提示「不是私密连接」，点「高级 → 继续访问」即可正常游玩。
+  Caddy 每 12 小时会再试一次 Let's Encrypt，成功后自动换成正式证书，不用重装。"
+      return 0
+    fi
     sleep 2
   done
   warn "证书还没有申请下来。常见原因：云服务器安全组没有放行这个公网 IP 的 TCP 80 / 443；--ip 填的不是玩家访问的那个 IP。
@@ -428,6 +441,8 @@ print_summary() {
     echo "  拿到 zip 的人在任意一个本游戏服务器的「设置 → 素材包」里选择这个文件即可导入。"
   fi
   echo "  云服务器安全组要对 ${SP_DOMAIN:-$SP_IP} 放行 TCP 80、443（以及 UDP 443）。"
+  [ -z "$SP_DOMAIN" ] && echo "  请让朋友直接输入 https://$SP_IP/（机房拦截 80 端口时，http:// 不会自动跳转到 https）。"
+  return 0
 }
 
 restart_all() { systemctl restart stronghold-game; systemctl reload-or-restart stronghold-caddy; }
