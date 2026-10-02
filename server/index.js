@@ -14,7 +14,7 @@
 //     (html & code/data: no-cache + revalidate; public/assets|fonts|vendor: 1 day; any `?v=` URL: immutable);
 //     single byte-range requests (206/416, used by <audio>); traversal & dotfile protection; 404 page.
 //   * GET /healthz → JSON status (protocol `version`, release `app`, rooms, matches, sessions, sockets, `assets` mode).
-//   * GET /client-config.json → { assets: 'client' | 'server', sources: [{ url, label }], hash } for the 素材包 boot gate
+//   * GET /client-config.json → { assets: 'client' | 'server', sources: [{ url, label }], prompt, hash } for the 素材包 boot gate
 //     (public/js/assetpack/gate.js). SP_ASSETS=client: the art lives in each player's browser (imported pack, served by
 //     public/sw.js), the server needs no public/assets; 'server' = the classic setup; 'auto' (default) = 'server' when
 //     public/assets holds files, else 'client'. SP_ASSET_URL: download sources offered to players (space / comma
@@ -529,7 +529,7 @@ function makeLogger(quiet) {
  *   ratePerSec?: number, rateBurst?: number, maxConnections?: number, maxRooms?: number,
  *   maxConnectionsPerAddr?: number, maxRoomsPerAddr?: number, maxMatchesPerAddr?: number, resyncMinGapMs?: number,
  *   heavyPerSec?: number, heavyBurst?: number, trustProxy?: 'auto' | boolean, soloReconnectWindowMs?: number,
- *   assets?: 'client' | 'server' | 'auto', assetSources?: { url: string, label: string }[],
+ *   assets?: 'client' | 'server' | 'auto', assetSources?: { url: string, label: string }[], assetPrompt?: boolean,
  * }} [opts]
  * @returns {Promise<{ port: number, host: string, url: string, server: http.Server, wss: WebSocketServer,
  *                     lobby: Lobby, network: Network, registry: SessionRegistry, assets: 'client' | 'server',
@@ -565,9 +565,15 @@ export async function startServer(opts = {}) {
   const clientConfig = {
     assets: assetsMode,
     sources: opts.assetSources ?? parseAssetSources(process.env.SP_ASSET_URL),
+    prompt: false,
     hash: (data && data.assets && typeof data.assets.hash === 'string') ? data.assets.hash : null,
     app: APP_VERSION,
   };
+  // SP_ASSETS=server: offer the 素材包 screen on a player's first visit (download / local zip / skip) when the server
+  // lists download sources, unless SP_ASSET_PROMPT says otherwise; client mode always asks
+  clientConfig.prompt = opts.assetPrompt ?? (process.env.SP_ASSET_PROMPT != null && process.env.SP_ASSET_PROMPT !== ''
+    ? !['0', 'false', 'no', 'off'].includes(String(process.env.SP_ASSET_PROMPT).trim().toLowerCase())
+    : clientConfig.sources.length > 0);
 
   const server = http.createServer((req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');

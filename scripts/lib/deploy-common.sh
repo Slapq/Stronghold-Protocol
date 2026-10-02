@@ -137,7 +137,7 @@ write_caddyfile() {
 
 asset_urls() { # SP_ASSET_URL from the hosted pack + the extra sources
   local urls= z
-  if [ -f "$PACK_DIR/pack.json" ]; then urls="本站=/pack/"
+  if [ -f "$PACK_DIR/pack.json" ]; then urls="${PACK_LABEL:-本站}=/pack/"
   else
     z=$(find "$PACK_DIR" -maxdepth 1 -name '*.zip' -print -quit 2>/dev/null || true)
     [ -n "$z" ] && urls="本站=/pack/$(basename "$z")"

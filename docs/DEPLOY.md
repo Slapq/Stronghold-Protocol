@@ -67,6 +67,7 @@ sudo scripts/deploy-native.sh --ip 你的公网IP --email you@example.com
 脚本会：
 - 安装 Node.js 22 到 `/opt/stronghold/node`（从 npmmirror 下载，**不改动系统里已有的 Node / Python 环境**）、Caddy 到 `/opt/stronghold/bin/caddy`（GitHub Release 经 ghfast 下载，校验 SHA-512）；
 - `npm ci` 走 npmmirror，素材经 ghfast 下载到服务器（`SP_GH_PROXY`，约 250 MB，中断后重跑会续传）——**服务器自带全部素材，朋友打开网页就能玩，不用导入**；
+- 朋友第一次打开时会看到「下载素材包（可选）」：**在线下载**（从 `/pack/` 逐个文件下载到浏览器，可断点续传；`/pack/` 是指向服务器素材的硬链接，不额外占磁盘）、**导入本地 zip**，或**暂时跳过**按需从服务器加载；选过一次就不再问（`SP_ASSET_PROMPT=0` 关掉这一页）；
 - 另外打一个**独立素材包** `deploy/pack/stronghold-assets-<版本>.zip`（`--no-zip` 不打），可以 `https://你的IP/pack/…zip` 下载（要登录）或 `scp` 拷走，发到群里；拿到的人在任意本游戏服务器的「设置 → 素材包」里导入；
 - 用 Caddy 向 Let's Encrypt 申请**IP 证书**（`shortlived` 配置，6 天有效期，Caddy 自动续期），并加上登录（`--auth basic` 默认 / `--auth link` / `--auth none`，同上一节）；
 - 注册两个 systemd 服务，以系统用户 `stronghold` 运行：`stronghold-game`（只监听 `127.0.0.1:3000`，`--port` 可改）和 `stronghold-caddy`（80 / 443；管理接口用 unix socket，不和其他 Caddy 冲突）。

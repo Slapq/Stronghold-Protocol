@@ -146,6 +146,7 @@ cd /opt/Stronghold-Protocol && sudo scripts/deploy-native.sh --ip 你的公网IP
 | `SP_VERIFY` | `off` | 服务器复算客户端上报的战斗结果：`off` / `sample`（约 1/8 抽查）/ `all`（全部复算，更耗 CPU） |
 | `TRUST_PROXY` | `auto` | 是否信任 `X-Forwarded-For` 等转发头：`auto` 只信任来自本机 / 内网的代理；`1` 总是；`0` 从不 |
 | `SP_ASSETS` | `auto` | 素材放在哪里：`server` = 服务器提供 `public/assets`（原来的方式）；`client` = 服务器不放素材，玩家在浏览器里导入素材包（需要 https 或 localhost）；`auto` = `public/assets` 里有文件就是 `server`，否则 `client` |
+| `SP_ASSET_PROMPT` | 自动 | 服务器自带素材时，玩家第一次打开是否先看到「下载素材包（可选）」页（在线下载 / 导入本地 zip / 暂时跳过）：默认在设置了 `SP_ASSET_URL` 时显示；`0` 关闭，`1` 总是显示 |
 | `SP_ASSET_URL` | 空 | 「导入素材包」页面推荐的下载地址，空格或逗号分隔；可以是放着 `pack.json` 的目录（如 `/pack/`）或一个 `.zip`，`名称=地址` 可以给它起名 |
 | `DEBUG` | 空 | 设为任意值输出详细日志 |
 | `SP_NO_BROWSER` | 空 | 设为 `1` 时启动脚本不自动打开浏览器 |

@@ -4,7 +4,8 @@
 //      (an older server without it counts as 'server').
 //   2. registers /sw.js (needs a secure context: https or localhost) so an imported pack is served from this browser.
 //   3. decides (decideGate): boot the game, or show the 素材包 screen — when the server runs with SP_ASSETS=client and
-//      this browser has no complete pack, or when the page was opened with `?assets` (settings → 素材包).
+//      this browser has no complete pack; once, optionally, on a server that hosts the art and lists download sources
+//      (`prompt`); or when the page was opened with `?assets` (settings → 素材包).
 //
 // The screen imports from a server-listed source, any URL (a zip or a directory with pack.json), or a local zip file
 // (the pack built by tools/pack-assets.mjs, or the upstream Releases 整合包 as is). After an import the page reloads so
@@ -26,13 +27,14 @@ const lsSet = (k, v) => { try { if (v == null) localStorage.removeItem(k); else 
 /**
  * Pure decision (tested): what the boot does.
  * @param {{ config: { assets?: string }, status: object | null, supported: boolean, force: boolean, skipped: boolean }} s
- * @returns {'boot' | 'import' | 'manage' | 'unsupported'}
+ * @returns {'boot' | 'import' | 'offer' | 'manage' | 'unsupported'}
  */
 export function decideGate({ config, status, supported, force, skipped }) {
   if (force) return supported ? 'manage' : 'unsupported';
   if (status && status.complete) return 'boot';
-  if (!config || config.assets !== 'client') return 'boot';
-  if (skipped) return 'boot';
+  if (!config || skipped) return 'boot';
+  // the server hosts the art: importing first is optional (saves the server's bandwidth), asked once
+  if (config.assets !== 'client') return config.prompt && supported ? 'offer' : 'boot';
   return supported ? 'import' : 'unsupported';
 }
 
@@ -55,7 +57,7 @@ async function loadConfig() {
     const j = await res.json();
     return {
       assets: j && j.assets === 'client' ? 'client' : 'server', sources: normaliseSources(j && j.sources),
-      hash: (j && j.hash) || null, app: (j && typeof j.app === 'string' && j.app) || null,
+      hash: (j && j.hash) || null, app: (j && typeof j.app === 'string' && j.app) || null, prompt: !!(j && j.prompt),
     };
   } catch {
     return { assets: 'server', sources: [] };
@@ -167,9 +169,13 @@ function AssetPackScreen({ config, initialStatus, supported, mode, onBoot }) {
       onDrop=${(e) => { e.preventDefault(); setDrag(false); if (!busy) fromFile(e.dataTransfer?.files?.[0]); }}>
     <section class="ap-card brackets">
       <${MicroLabel}>ASSET PACK · 素材包<//>
-      <h1 class="ap-title">${status && status.complete ? '素材包已安装' : '导入素材包'}</h1>
-      <p class="ap-text">这台服务器不提供美术和音频素材（版权归鹰角网络 / Yostar）。素材保存在<b>你自己的浏览器</b>里，只需导入一次，之后进游戏不再下载。
-        完整素材约 250 MB。</p>
+      <h1 class="ap-title">${status && status.complete ? '素材包已安装' : config.assets === 'client' ? '导入素材包' : '下载素材包（可选）'}</h1>
+      ${config.assets === 'client'
+        ? html`<p class="ap-text">这台服务器不提供美术和音频素材（版权归鹰角网络 / Yostar）。素材保存在<b>你自己的浏览器</b>里，只需导入一次，之后进游戏不再下载。
+            完整素材约 250 MB。</p>`
+        : html`<p class="ap-text">可以先把全部素材（约 250 MB）存进<b>你自己的浏览器</b>：之后进游戏、换场景都不用再等加载。
+            也可以暂时跳过，玩到哪里再从服务器加载哪里。</p>`}
+      <p class="ap-hint">素材包 zip 是开服的人用部署脚本打包的 stronghold-assets-….zip（通常在群文件里），导入只在浏览器本地读取，不会上传。</p>
 
       ${status && status.complete ? html`<div class="ap-installed">
         <div><span>文件</span><b>${status.files} 个 · ${formatBytes(status.bytes)}</b></div>
@@ -188,8 +194,8 @@ function AssetPackScreen({ config, initialStatus, supported, mode, onBoot }) {
         ${busy.phase !== 'done' ? html`<div class="ap-actions"><${Button} variant="ghost" icon="close" onClick=${() => ctl.current?.abort()}>取消<//></div>` : null}
       </div>` : html`<div class="ap-sources">
         ${config.sources.length ? html`<div class="ap-group">
-          <div class="ap-group__title">从服务器推荐的地址下载</div>
-          ${config.sources.map((s) => html`<${Button} key=${s.url} variant="primary" icon="signal" block onClick=${() => fromUrl(s.url)}>${s.label}<//>`)}
+          <div class="ap-group__title">在线下载（逐个文件下载，中断后可以继续）</div>
+          ${config.sources.map((s) => html`<${Button} key=${s.url} variant="primary" icon="signal" block onClick=${() => fromUrl(s.url)}>从${s.label}下载全部素材<//>`)}
         </div>` : null}
         <div class="ap-group">
           <div class="ap-group__title">从网址下载</div>
@@ -214,7 +220,7 @@ function AssetPackScreen({ config, initialStatus, supported, mode, onBoot }) {
         ${status && status.complete
           ? html`<${Button} variant="danger" icon="close" onClick=${remove}>删除素材<//>
               <${Button} variant="primary" icon="play" onClick=${() => (mode === 'manage' ? location.replace(cleanUrl()) : onBoot())}>进入游戏<//>`
-          : html`<${Button} variant="ghost" onClick=${() => { lsSet(SKIP_KEY, '1'); if (mode === 'manage') location.replace(cleanUrl()); else onBoot(); }}>先不导入，用占位画面进入<//>`}
+          : html`<${Button} variant="ghost" onClick=${() => { lsSet(SKIP_KEY, '1'); if (mode === 'manage') location.replace(cleanUrl()); else onBoot(); }}>${config.assets === 'client' ? '先不导入，用占位画面进入' : '暂时跳过，按需从服务器加载'}<//>`}
       </div>` : null}
     </section>
   </div>`;

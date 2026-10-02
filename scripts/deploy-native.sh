@@ -59,6 +59,7 @@ UNIT_DIR=/etc/systemd/system
 ENV_KEYS="SP_IP SP_DOMAIN SP_BIND SP_EMAIL SP_AUTH SP_PORT SP_ZIP SP_GH_PROXY SP_NPM_REGISTRY SP_NODE_MIRROR SP_ASSET_URL SP_EXTRA_URLS SP_LINK_KEY"
 CADDY_PACK_ROOT="$PACK_DIR"
 ASSETS_ON_SERVER=1
+PACK_LABEL=本服务器
 # shellcheck source=scripts/lib/deploy-common.sh
 . "$ROOT/scripts/lib/deploy-common.sh"
 init_env
@@ -206,6 +207,9 @@ fetch_art() {
 
 build_zip() {
   mkdir -p "$PACK_DIR"
+  # the web directory (pack.json + hard links into public/assets, no extra disk): players' 在线下载, file by file
+  ( cd "$ROOT" && "$NODE_BIN" tools/pack-assets.mjs --dir "$PACK_DIR" --link --no-zip --quiet )
+  chmod -R a+rX "$PACK_DIR"
   if [ "$SP_ZIP" = no ]; then find "$PACK_DIR" -maxdepth 1 -name 'stronghold-assets-*.zip' -delete; return 0; fi
   local hash out
   hash=$("$NODE_BIN" -p 'require(process.argv[1]).hash || "pack"' "$ROOT/data/assets.json")

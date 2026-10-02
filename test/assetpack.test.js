@@ -326,6 +326,11 @@ test('boot gate: import only when the server keeps no art and this browser has n
   assert.equal(decideGate({ config: client, status: null, supported: true, force: false, skipped: true }), 'boot', '先不导入 is remembered');
   assert.equal(decideGate({ config: client, status: null, supported: false, force: false, skipped: false }), 'unsupported', 'plain http');
   assert.equal(decideGate({ config: server, status: null, supported: true, force: false, skipped: false }), 'boot', 'classic server: unchanged');
+  const offering = { assets: 'server', prompt: true };
+  assert.equal(decideGate({ config: offering, status: null, supported: true, force: false, skipped: false }), 'offer', 'server art + download source: asked once');
+  assert.equal(decideGate({ config: offering, status: null, supported: true, force: false, skipped: true }), 'boot', '暂时跳过 is remembered');
+  assert.equal(decideGate({ config: offering, status: null, supported: false, force: false, skipped: false }), 'boot', 'no service worker: just play');
+  assert.equal(decideGate({ config: offering, status: done, supported: true, force: false, skipped: false }), 'boot');
   assert.equal(decideGate({ config: server, status: null, supported: false, force: false, skipped: false }), 'boot');
   assert.equal(decideGate({ config: server, status: done, supported: true, force: true, skipped: false }), 'manage', '?assets');
   assert.equal(decideGate({ config: null, status: null, supported: true, force: false, skipped: false }), 'boot', 'older server');
@@ -445,6 +450,7 @@ describe('server: SP_ASSETS / SP_ASSET_URL / client-config.json', () => {
     const cfg = JSON.parse(r.body);
     assert.equal(cfg.assets, 'client');
     assert.deepEqual(cfg.sources, [{ url: '/pack/', label: '本站' }]);
+    assert.equal(cfg.prompt, true, 'sources listed → offered');
     const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'assets.json'), 'utf8'));
     assert.equal(cfg.hash, manifest.hash);
     assert.equal(JSON.parse((await get('/healthz')).body).assets, 'client');
