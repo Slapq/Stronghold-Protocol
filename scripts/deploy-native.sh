@@ -15,6 +15,7 @@
 #   sudo scripts/deploy-native.sh update        git pull + dependencies + new art + restart
 #   sudo scripts/deploy-native.sh assets        download new art and rebuild the shared zip
 #   sudo scripts/deploy-native.sh add-user NAME | del-user NAME | users | new-link
+#   sudo scripts/deploy-native.sh retry-cert    try Let's Encrypt for the IP certificate again right now
 #   sudo scripts/deploy-native.sh status | logs | restart | uninstall
 #
 # Options (install):
@@ -62,7 +63,7 @@ ASSETS_ON_SERVER=1
 . "$ROOT/scripts/lib/deploy-common.sh"
 init_env
 
-usage() { sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,37p' "$0" | sed 's/^# \{0,1\}//'; }
 
 # ---- helpers -------------------------------------------------------------------------------------------------------
 
@@ -119,7 +120,9 @@ caddy_tls() {
   # Let's Encrypt issues IP-address certificates only with the short-lived profile (6 days; Caddy renews them).
   # Mainland IDCs often block port 80 and parts of the validation paths: then Caddy falls back to its own CA (the
   # browser warns once per visitor) and retries Let's Encrypt at every renewal of that 12-hour certificate.
-  [ -z "$SP_DOMAIN" ] && printf '\ttls {\n\t\tissuer acme {\n\t\t\tprofile shortlived\n\t\t}\n\t\tissuer internal\n\t}\n'
+  # Only the TLS-ALPN challenge (port 443): an http-01 attempt on a blocked port 80 wastes one of Let's Encrypt's
+  # 5 failed validations per hour.
+  [ -z "$SP_DOMAIN" ] && printf '\ttls {\n\t\tissuer acme {\n\t\t\tprofile shortlived\n\t\t\tdisable_http_challenge\n\t\t}\n\t\tissuer internal\n\t}\n'
   return 0
 }
 site_url() { if [ -n "$SP_DOMAIN" ]; then printf 'https://%s/' "$SP_DOMAIN"; else printf 'https://%s/' "$SP_IP"; fi; }
@@ -335,7 +338,7 @@ wait_ready() {
     if [ -z "$SP_DOMAIN" ] && [ "$i" -ge 20 ] && [ -n "$insecure" ] && [ "$insecure" != 000 ]; then
       warn "Let's Encrypt 暂时没有签下来（机房常拦 80 端口、跨境验证不稳定），现在用的是临时自签证书：
   朋友打开 $(site_url) 时浏览器会提示「不是私密连接」，点「高级 → 继续访问」即可正常游玩。
-  Caddy 每 12 小时会再试一次 Let's Encrypt，成功后自动换成正式证书，不用重装。"
+  Caddy 约每 8 小时会再试一次 Let's Encrypt，成功后自动换成正式证书；想马上再试：scripts/$(basename "$0") retry-cert"
       return 0
     fi
     sleep 2
@@ -495,6 +498,29 @@ cmd_new_link() {
   say "新的邀请链接：$(site_url)join/$SP_LINK_KEY （旧链接和旧 Cookie 都已失效）"
 }
 
+cmd_retry_cert() {
+  need_root; load_env; [ -z "$SP_DOMAIN" ] || die "retry-cert 只用于 IP 证书"
+  local fallback="$CADDY_STATE/caddy/certificates/local/$SP_IP" since out i
+  # with the internal certificate stored Caddy would only retry Let's Encrypt at its renewal (~8 h)
+  rm -rf "$fallback"
+  since=$(date '+%Y-%m-%d %H:%M:%S')
+  systemctl restart stronghold-caddy
+  say "正在向 Let's Encrypt 申请 $SP_IP 的证书（只走 443 端口验证，最多等 2 分钟）…"
+  for i in $(seq 1 60); do
+    sleep 2
+    out=$(journalctl -u stronghold-caddy --since "$since" -o cat --no-pager 2>/dev/null || true)
+    if printf '%s' "$out" | grep -q '"certificate obtained successfully".*"issuer":"acme-v02\.api\.letsencrypt\.org'; then
+      say "成功：已拿到 Let's Encrypt 正式证书，浏览器不会再提示不安全。"; return 0
+    fi
+    if printf '%s' "$out" | grep -q '"certificate obtained successfully".*"issuer":"local"'; then
+      warn "这次 Let's Encrypt 验证又失败了，仍在用临时证书（不影响游玩）。原因：$(printf '%s' "$out" | grep -o '"detail":"[^"]*"' | tail -1 | cut -d'"' -f4)
+  过一段时间再运行 scripts/$(basename "$0") retry-cert（Let's Encrypt 每个 IP 每小时最多允许 5 次失败）。"
+      return 0
+    fi
+  done
+  warn "2 分钟内没有结果，Caddy 仍在后台重试：journalctl -u stronghold-caddy -f"
+}
+
 cmd_uninstall() {
   need_root
   ask "停止并删除 stronghold-game / stronghold-caddy 服务？（项目目录、deploy/ 里的设置和素材包保留）" n || exit 0
@@ -520,6 +546,7 @@ main() {
     status) systemctl --no-pager status stronghold-game stronghold-caddy ;;
     logs) journalctl -u stronghold-game -u stronghold-caddy -f -n 100 ;;
     restart) need_root; restart_all; say "已重启（正在进行的对局会结束）" ;;
+    retry-cert) cmd_retry_cert ;;
     uninstall) cmd_uninstall ;;
     *) die "未知命令：$cmd（scripts/$(basename "$0") --help）" ;;
   esac
