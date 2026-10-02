@@ -1,5 +1,7 @@
 // Upstream asset sources (GitHub dumps of the official client), URL helpers and
 // local-path helpers shared by the asset pipeline (tools/fetch-assets.mjs).
+// SP_GH_PROXY=https://ghfast.top/ puts a GitHub download proxy in front of every
+// raw.githubusercontent.com URL (sourceUrls; servers in mainland China).
 //
 // Every URL we download from is a raw.githubusercontent.com URL; mirrorUrl()
 // maps it to the equivalent jsDelivr URL used as a fallback when GitHub raw
@@ -31,6 +33,31 @@ export function mirrorUrl(url) {
   // jsDelivr does not serve the (huge) voice branch of ArknightsAssets2.
   if (owner === 'ArknightsAssets' && branch === 'voice') return null;
   return `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${branch}/${path}`;
+}
+
+/**
+ * GitHub download proxy from SP_GH_PROXY (e.g. `https://ghfast.top/`, for servers in mainland China where
+ * raw.githubusercontent.com is unreliable), normalised to end with '/'; '' when unset, 'none' or not an http(s) URL.
+ * @param {Record<string, string | undefined>} [env]
+ */
+export function ghProxy(env = process.env) {
+  const v = String(env.SP_GH_PROXY ?? '').trim();
+  if (!/^https?:\/\/[^\s/]+/i.test(v)) return '';
+  return v.endsWith('/') ? v : v + '/';
+}
+
+/**
+ * Every URL to try for one upstream file, in order. Without a proxy: the URL, then its jsDelivr mirror. With
+ * SP_GH_PROXY: the proxied GitHub URL (`<proxy>https://raw.githubusercontent.com/…`), the jsDelivr mirror, and the
+ * direct URL last.
+ * @param {string} url
+ * @param {string} [proxy] ghProxy() by default
+ * @returns {string[]}
+ */
+export function sourceUrls(url, proxy = ghProxy()) {
+  const mirror = mirrorUrl(url);
+  if (proxy && /^https:\/\/(raw\.githubusercontent\.com|github\.com)\//.test(String(url))) return [proxy + url, mirror, url].filter(Boolean);
+  return [url, mirror].filter(Boolean);
 }
 
 /**

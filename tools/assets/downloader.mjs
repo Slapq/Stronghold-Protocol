@@ -6,7 +6,7 @@
 // - Per source: up to `retries` attempts with exponential backoff on network
 //   errors, timeouts, 403/429/5xx and payloads that fail format validation;
 //   a 404/410 moves on immediately. Sources: each candidate URL, then its
-//   jsDelivr mirror (sources.mirrorUrl).
+//   jsDelivr mirror (sources.sourceUrls; SP_GH_PROXY puts a GitHub proxy first).
 // - Idempotent: an existing file is kept when its size matches the ledger entry
 //   of a previous download or the expected byte count from research, or (when
 //   neither is known) when it passes format validation. The ledger lives in
@@ -14,7 +14,7 @@
 
 import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { mirrorUrl } from './sources.mjs';
+import { sourceUrls } from './sources.mjs';
 import { validate } from './formats.mjs';
 
 /**
@@ -146,7 +146,7 @@ export class Downloader {
     if (kept >= 0) return { status: 'skip', bytes: kept };
     let lastError = null;
     for (const url of job.urls) {
-      const sources = [url, mirrorUrl(url)].filter(Boolean);
+      const sources = sourceUrls(url);
       for (const src of sources) {
         const r = await this.fetchWithRetries(src, job.kind);
         if (r.notFound) continue;

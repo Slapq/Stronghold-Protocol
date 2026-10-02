@@ -67,7 +67,12 @@ const swSupported = () => typeof navigator !== 'undefined' && 'serviceWorker' in
 async function registerWorker() {
   try {
     await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-    await navigator.serviceWorker.ready;
+    // `ready` never settles for a worker that fails to activate: never let that hold the boot
+    const ready = await Promise.race([
+      navigator.serviceWorker.ready.then(() => true),
+      new Promise((resolve) => setTimeout(() => resolve(false), CONTROLLER_WAIT_MS)),
+    ]);
+    if (!ready) return false;
     if (navigator.serviceWorker.controller) return true;
     // first install: clients.claim() hands this page to the worker shortly after activation
     return await new Promise((resolve) => {

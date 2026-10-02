@@ -6,7 +6,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { assetUrl, mirrorUrl } from './sources.mjs';
+import { assetUrl, sourceUrls } from './sources.mjs';
 
 /** Manifest schema version (bump on breaking shape changes). */
 export const MANIFEST_VERSION = 1;
@@ -83,7 +83,7 @@ export function resolveTemplate(template, { root, spine, sourceOf = () => undefi
         const a = node.alts[i];
         if (existsSync(join(root, a.rel))) {
           const src = sourceOf(a.rel);
-          const primary = node.alts[0].urls.flatMap((u) => [u, mirrorUrl(u)]);
+          const primary = node.alts[0].urls.flatMap((u) => sourceUrls(u));
           if (i > 0) fallbacks.push(`${path} ← ${src || a.urls[0]}`);
           else if (src && !primary.includes(src)) fallbacks.push(`${path} ← ${src}`);
           files.add(a.rel);

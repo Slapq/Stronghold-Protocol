@@ -53,6 +53,35 @@ sudo scripts/deploy.sh --domain game.example.com --email you@example.com
 
 已经有 Nginx / Caddy 占用 80 / 443 时：不用这个脚本，按 [2.4](#24-反向代理与-https有域名时) 自己配置反向代理，再按下一节设置 `SP_ASSETS=client` 和 `SP_ASSET_URL`，并在代理上加 basic auth。
 
+## 国内服务器 / 不用 Docker（`scripts/deploy-native.sh`）
+
+适合：大陆的云服务器，上面已经跑着别的服务，不想装 Docker；没有备案的域名，直接用**公网 IP + 443 端口**访问。
+
+```bash
+# 国内拉 GitHub 慢：通过 ghfast 克隆；放在 /opt 下（服务用户 stronghold 读不到 /root）
+sudo git clone https://ghfast.top/https://github.com/Slapq/Stronghold-Protocol.git /opt/Stronghold-Protocol
+cd /opt/Stronghold-Protocol
+sudo scripts/deploy-native.sh --ip 你的公网IP --email you@example.com
+```
+
+脚本会：
+- 安装 Node.js 22 到 `/opt/stronghold/node`（从 npmmirror 下载，**不改动系统里已有的 Node / Python 环境**）、Caddy 到 `/opt/stronghold/bin/caddy`（GitHub Release 经 ghfast 下载，校验 SHA-512）；
+- `npm ci` 走 npmmirror，素材经 ghfast 下载到服务器（`SP_GH_PROXY`，约 250 MB，中断后重跑会续传）——**服务器自带全部素材，朋友打开网页就能玩，不用导入**；
+- 另外打一个**独立素材包** `deploy/pack/stronghold-assets-<版本>.zip`（`--no-zip` 不打），可以 `https://你的IP/pack/…zip` 下载（要登录）或 `scp` 拷走，发到群里；拿到的人在任意本游戏服务器的「设置 → 素材包」里导入；
+- 用 Caddy 向 Let's Encrypt 申请**IP 证书**（`shortlived` 配置，6 天有效期，Caddy 自动续期），并加上登录（`--auth basic` 默认 / `--auth link` / `--auth none`，同上一节）；
+- 注册两个 systemd 服务，以系统用户 `stronghold` 运行：`stronghold-game`（只监听 `127.0.0.1:3000`，`--port` 可改）和 `stronghold-caddy`（80 / 443；管理接口用 unix socket，不和其他 Caddy 冲突）。
+
+**有多个公网 IP（NAT / 弹性 IP）**：网卡上通常只有内网地址，`--ip` 必须写你要给玩家用的那个公网 IP（脚本不会自动猜：出网可能走另一个 IP）。浏览器用 IP 访问时不发 SNI，脚本因此设置了 `default_sni`。想让另一个 IP 的 80 / 443 完全不受影响，用 `--bind <这个公网 IP 对应的内网地址>`（云控制台的弹性 IP 详情里能看到）。安全组只需对这一个公网 IP 放行 TCP 80、443（UDP 443 可选）。Let's Encrypt 要从外网访问这个 IP 的 80 或 443 才能签发证书。
+
+| 命令（`sudo scripts/deploy-native.sh …`） | 作用 |
+|---|---|
+| `update` | 经 ghfast `git pull`、更新依赖、补下载新素材、重打 zip、重启 |
+| `assets` | 只补下载素材并重打 zip |
+| `add-user 名字` / `del-user 名字` / `users` / `new-link` | 账号 / 邀请链接管理（同上一节） |
+| `status` / `logs` / `restart` / `uninstall` | 服务状态 / 日志 / 重启 / 卸载（保留项目目录和 `deploy/`） |
+
+镜像都可以换：`--gh-proxy <其他 GitHub 代理>`（`none` = 直连）、`--npm-registry`、`--node-mirror`。设置保存在 `deploy/native.env`。证书没申请下来时看 `journalctl -u stronghold-caddy -n 50`：最常见的是安全组没放行 80 / 443，或 `--ip` 写成了另一个 IP。
+
 ## 素材与服务器分离
 
 美术 / 音频（版权归鹰角网络 / Yostar）可以完全不放在游戏服务器上：

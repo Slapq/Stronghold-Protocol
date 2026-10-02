@@ -9,7 +9,7 @@
 > [!NOTE]
 > 本仓库是 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 的 fork，在原项目基础上增加了：
 > - **素材与服务器分离**：服务器可以不存放任何美术 / 音频（`SP_ASSETS=client`），每位玩家把素材包导入到**自己的浏览器**里（本地 zip 文件，或从网址下载），只需导入一次；
-> - **一键部署**：`scripts/deploy.sh` 在有公网 IP 和域名的 Linux 服务器上用 Docker 搭好游戏服务器 + Caddy（自动 HTTPS、**登录验证**、素材包下载）。
+> - **一键部署**：`scripts/deploy.sh` 在有公网 IP 和域名的 Linux 服务器上用 Docker 搭好游戏服务器 + Caddy（自动 HTTPS、**登录验证**、素材包下载）；国内服务器可以用不依赖 Docker 的 `scripts/deploy-native.sh`（公网 IP 证书、国内镜像 / ghfast）。
 >
 > 见 [一键部署到云服务器](#方式三一键部署到云服务器带登录素材在玩家浏览器里) 与 [docs/DEPLOY.md](docs/DEPLOY.md#一键部署linux-云服务器--域名)。
 
@@ -114,6 +114,15 @@ sudo scripts/deploy.sh update            # 更新代码并重启
 ```
 
 完整说明（登录方式、素材放在别的网站、更新素材、排错）见 [docs/DEPLOY.md「一键部署」](docs/DEPLOY.md#一键部署linux-云服务器--域名)。
+
+**国内服务器、不想用 Docker、没有备案域名**：用 `scripts/deploy-native.sh`，直接用公网 IP + 443 访问（Let's Encrypt IP 证书），Node.js / npm / Caddy / 素材都走国内镜像或 ghfast，服务器自带全部素材，同时打一个可以发到群里的独立素材包 zip：
+
+```bash
+sudo git clone https://ghfast.top/https://github.com/Slapq/Stronghold-Protocol.git /opt/Stronghold-Protocol
+cd /opt/Stronghold-Protocol && sudo scripts/deploy-native.sh --ip 你的公网IP --email you@example.com
+```
+
+见 [docs/DEPLOY.md「国内服务器 / 不用 Docker」](docs/DEPLOY.md#国内服务器--不用-dockerscriptsdeploy-nativesh)。
 
 ### 系统要求
 

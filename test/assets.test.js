@@ -16,7 +16,7 @@ import { normalizeAtlas, atlasInfo, parseAtlas } from '../tools/assets/atlas.mjs
 import { pngSize, isCompletePng, isMp3, validate } from '../tools/assets/formats.mjs';
 import { encodeWoff2, decodeWoff2Tables, readSfnt, uintBase128 } from '../tools/assets/woff2.mjs';
 import { assetToPath, pickUnitSfx, indexAudio } from '../tools/assets/audio.mjs';
-import { mirrorUrl, safeName, encodePath } from '../tools/assets/sources.mjs';
+import { mirrorUrl, safeName, encodePath, ghProxy, sourceUrls } from '../tools/assets/sources.mjs';
 import { collectEnemyIds, skillIndicesByChar } from '../tools/assets/plan.mjs';
 import { resolveTemplate, collectLeaves } from '../tools/assets/manifest.mjs';
 
@@ -227,6 +227,19 @@ describe('format helpers', () => {
     assert.equal(encodePath('[uc]a/b c#.png'), '%5Buc%5Da/b%20c%23.png');
     assert.equal(safeName('skcom_charge_cost[3]'), 'skcom_charge_cost_3_');
     assert.equal(safeName('bg_open 1'), 'bg_open_1');
+  });
+
+  test('SP_GH_PROXY: GitHub proxy first, then jsDelivr, then the direct URL', () => {
+    const raw = 'https://raw.githubusercontent.com/fexli/ArknightsResource/main/spine/a/b.skel';
+    const cdn = 'https://cdn.jsdelivr.net/gh/fexli/ArknightsResource@main/spine/a/b.skel';
+    assert.deepEqual(sourceUrls(raw, ''), [raw, cdn], 'no proxy: unchanged order');
+    assert.deepEqual(sourceUrls(raw, 'https://ghfast.top/'), [`https://ghfast.top/${raw}`, cdn, raw]);
+    const voice = 'https://raw.githubusercontent.com/ArknightsAssets/ArknightsAssets2/voice/assets/x.mp3';
+    assert.deepEqual(sourceUrls(voice, 'https://ghfast.top/'), [`https://ghfast.top/${voice}`, voice], 'no jsDelivr for the voice branch');
+    assert.deepEqual(sourceUrls('https://example.com/x', 'https://ghfast.top/'), ['https://example.com/x'], 'only GitHub URLs are proxied');
+    assert.equal(ghProxy({ SP_GH_PROXY: 'https://ghfast.top' }), 'https://ghfast.top/');
+    assert.equal(ghProxy({ SP_GH_PROXY: ' https://gh.example.com/p/ ' }), 'https://gh.example.com/p/');
+    for (const v of [undefined, '', 'none', '0', 'ghfast.top']) assert.equal(ghProxy({ SP_GH_PROXY: v }), '', String(v));
   });
 });
 

@@ -41,6 +41,8 @@ desktop.ini
 # --- art packs and server deployments (tools/pack-assets.mjs, scripts/deploy.sh) -----------------
 dist/
 deploy/.env
+deploy/native.env
+deploy/game.env
 deploy/caddy/
 deploy/users.caddy
 deploy/credentials.txt
