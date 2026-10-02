@@ -10,10 +10,12 @@
 #        docker run -d --name stronghold -p 3000:3000 --restart unless-stopped \
 #          -v "$PWD/public/assets:/app/public/assets:ro" stronghold-protocol
 #      (public/fonts, data/assets.json and data/local-assets.json are copied from the build context when present)
-# Without any art the game still runs with placeholder visuals.
+# Without any art the game still runs with placeholder visuals — or, with SP_ASSETS=client, every player imports the
+# art pack into their own browser (the `tools` stage below builds it; scripts/deploy.sh wires it all up).
 #
 # Run:  docker run -d --name stronghold -p 3000:3000 --restart unless-stopped stronghold-protocol
-# Env:  PORT (3000), HOST (0.0.0.0), SP_COMBAT (client|server), SP_VERIFY (off|sample|all), TRUST_PROXY (auto|1|0), DEBUG
+# Env:  PORT (3000), HOST (0.0.0.0), SP_COMBAT (client|server), SP_VERIFY (off|sample|all), TRUST_PROXY (auto|1|0), DEBUG,
+#       SP_ASSETS (auto|client|server), SP_ASSET_URL (pack download sources shown to players)
 
 ARG NODE_IMAGE=node:22-alpine
 
@@ -38,6 +40,13 @@ RUN node tools/vendor.mjs \
       node tools/fetch-assets.mjs || echo "WARNING: art download incomplete; the image falls back to placeholder art"; \
     fi \
  && rm -rf .cache
+
+# ---- 2b. tools: build the art pack players import in their browsers (SP_ASSETS=client, docs/DEPLOY.md) ---------
+#   docker build --target tools -t stronghold-tools .
+#   docker run --rm -v "$PWD/deploy/pack:/out" stronghold-tools        # → /out/pack.json + assets/ fonts/ data/
+# (scripts/deploy.sh does this; any other tools/*.mjs command can be given instead of the default)
+FROM build AS tools
+CMD ["sh", "-c", "node tools/fetch-assets.mjs && node tools/pack-assets.mjs --dir /out --no-zip"]
 
 # ---- 3. runtime ---------------------------------------------------------------------------------------
 FROM ${NODE_IMAGE}

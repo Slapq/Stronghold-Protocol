@@ -45,6 +45,7 @@ import { GuideHost } from './ui/guide.js';
 import { installDeviceSupport } from './ui/device.js';
 import { LoadoutHost } from './screens/loadout.js';
 import { installLoadoutSync } from './ui/loadoutSync.js';
+import { ensureAssets } from './assetpack/gate.js';
 
 const RESTORE_GRACE_MS = 1500;
 const JOIN_DELAY_MS = 350;
@@ -302,12 +303,23 @@ function installGlobalErrorHandlers() {
   });
 }
 
+function hideSplash() {
+  const splash = document.getElementById('boot');
+  if (splash && !splash.classList.contains('is-done')) {
+    splash.classList.add('is-done');
+    setTimeout(() => splash.remove(), 300);
+  }
+}
+
 async function boot() {
   installGlobalErrorHandlers();
   // touch / hover / fullscreen classes, zoom-gesture blocking, rotation re-layout (ui/device.js, css/devices.css)
   installDeviceSupport();
   // A page restored from the back/forward cache has a dead socket and a stale token choice: start over.
   window.addEventListener('pageshow', (ev) => { if (ev.persisted) location.reload(); });
+  // Art/audio may live in this browser instead of on the server (SP_ASSETS=client): register the service worker that
+  // serves an imported pack, and show the 素材包 screen first when none is installed (assetpack/gate.js).
+  await ensureAssets(document.getElementById('app'), { onShow: hideSplash });
   // Pick this tab's reconnect token (asks other live tabs; ≤150 ms) while fonts load.
   const identityReady = identity.init();
 
@@ -339,11 +351,7 @@ async function boot() {
   const root = document.getElementById('app');
   render(html`<${App} />`, root);
 
-  const splash = document.getElementById('boot');
-  if (splash) {
-    splash.classList.add('is-done');
-    setTimeout(() => splash.remove(), 300);
-  }
+  hideSplash();
   globalThis.__SP__ = { store, net, data, version: 1 };
 }
 

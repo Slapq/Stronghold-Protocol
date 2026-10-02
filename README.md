@@ -6,6 +6,13 @@
 ![license](https://img.shields.io/badge/code%20license-GPL--3.0--or--later-blue)
 ![node](https://img.shields.io/badge/node-22%20%7C%2024-339933)
 
+> [!NOTE]
+> 本仓库是 [sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol) 的 fork，在原项目基础上增加了：
+> - **素材与服务器分离**：服务器可以不存放任何美术 / 音频（`SP_ASSETS=client`），每位玩家把素材包导入到**自己的浏览器**里（本地 zip 文件，或从网址下载），只需导入一次；
+> - **一键部署**：`scripts/deploy.sh` 在有公网 IP 和域名的 Linux 服务器上用 Docker 搭好游戏服务器 + Caddy（自动 HTTPS、**登录验证**、素材包下载）。
+>
+> 见 [一键部署到云服务器](#方式三一键部署到云服务器带登录素材在玩家浏览器里) 与 [docs/DEPLOY.md](docs/DEPLOY.md#一键部署linux-云服务器--域名)。
+
 ## 声明
 
 > [!IMPORTANT]
@@ -27,7 +34,7 @@ English summary: [below](#english).
 ## 目录
 
 - [声明](#声明) · [简介](#简介) · [功能一览](#功能一览)
-- [快速开始](#快速开始)：[整合包](#方式一整合包推荐) · [从源码运行](#方式二从源码运行) · [系统要求](#系统要求) · [端口与配置](#端口与配置) · [局域网联机](#和朋友一起玩局域网)
+- [快速开始](#快速开始)：[整合包](#方式一整合包推荐) · [从源码运行](#方式二从源码运行) · [一键部署到云服务器](#方式三一键部署到云服务器带登录素材在玩家浏览器里) · [系统要求](#系统要求) · [端口与配置](#端口与配置) · [局域网联机](#和朋友一起玩局域网)
 - [联机方式](#联机方式) · [操作](#操作) · [文档](#文档) · [开发与测试](#开发与测试) · [项目结构](#项目结构)
 - [许可证](#许可证) · [致谢与数据来源](#致谢与数据来源) · [贡献](#贡献)
 
@@ -90,6 +97,24 @@ npm start          # 启动服务器：http://localhost:3000
 - 素材下载优先使用 GitHub，失败时自动改用 jsDelivr 镜像。
 - `npm run doctor`（即 `node tools/doctor.mjs`）可以随时诊断：Node 版本、素材是否完整、端口占用、局域网地址和防火墙。
 
+### 方式三：一键部署到云服务器（带登录，素材在玩家浏览器里）
+
+适合有公网 IP 和域名、只想和朋友一起玩的服务器（Linux，需要 root 或 sudo）：
+
+```bash
+git clone https://github.com/Slapq/Stronghold-Protocol.git && cd Stronghold-Protocol
+sudo scripts/deploy.sh --domain game.example.com          # 域名先解析到这台服务器
+```
+
+脚本会：安装 Docker（缺少时）→ 用 Caddy 自动申请 HTTPS 证书 → 设置**登录**（默认用户名 + 密码，或 `--auth link` 只发一个邀请链接）→ 把素材打成素材包放在 `https://域名/pack/` → 启动。游戏服务器本身**不放素材**：朋友第一次打开网页时，在「导入素材包」页面点一下就会把约 250 MB 素材存进自己的浏览器，以后不再下载；也可以直接导入本地的素材包 zip（或原项目 Releases 的整合包 zip）。
+
+```bash
+sudo scripts/deploy.sh add-user 小明     # 加一个朋友的账号（会打印密码）
+sudo scripts/deploy.sh update            # 更新代码并重启
+```
+
+完整说明（登录方式、素材放在别的网站、更新素材、排错）见 [docs/DEPLOY.md「一键部署」](docs/DEPLOY.md#一键部署linux-云服务器--域名)。
+
 ### 系统要求
 
 | 项目 | 要求 |
@@ -111,6 +136,8 @@ npm start          # 启动服务器：http://localhost:3000
 | `SP_COMBAT` | `client` | `client`：各玩家浏览器模拟自己的战斗（服务器负载极低）；`server`：由服务器模拟并推流 |
 | `SP_VERIFY` | `off` | 服务器复算客户端上报的战斗结果：`off` / `sample`（约 1/8 抽查）/ `all`（全部复算，更耗 CPU） |
 | `TRUST_PROXY` | `auto` | 是否信任 `X-Forwarded-For` 等转发头：`auto` 只信任来自本机 / 内网的代理；`1` 总是；`0` 从不 |
+| `SP_ASSETS` | `auto` | 素材放在哪里：`server` = 服务器提供 `public/assets`（原来的方式）；`client` = 服务器不放素材，玩家在浏览器里导入素材包（需要 https 或 localhost）；`auto` = `public/assets` 里有文件就是 `server`，否则 `client` |
+| `SP_ASSET_URL` | 空 | 「导入素材包」页面推荐的下载地址，空格或逗号分隔；可以是放着 `pack.json` 的目录（如 `/pack/`）或一个 `.zip`，`名称=地址` 可以给它起名 |
 | `DEBUG` | 空 | 设为任意值输出详细日志 |
 | `SP_NO_BROWSER` | 空 | 设为 `1` 时启动脚本不自动打开浏览器 |
 
@@ -139,7 +166,7 @@ npm start          # 启动服务器：http://localhost:3000
 通用注意事项：
 
 - 游戏是**单个常驻 Node.js 进程 + WebSocket**（路径 `/ws`），只能跑一个实例，必须部署在域名根路径；Vercel 之类的 Serverless 平台和 GitHub Pages 之类的静态托管都不适用。反向代理要转发 WebSocket 升级。
-- 游戏没有账号系统，**知道地址的人都能进来**。请只把地址发给朋友，不要公开发布，也不要搭建公开大厅；这同时能降低素材版权方面的风险。
+- 游戏没有账号系统，**知道地址的人都能进来**。请只把地址发给朋友，不要公开发布，也不要搭建公开大厅；这同时能降低素材版权方面的风险。在云服务器上用 `scripts/deploy.sh` 部署时会在前面加一层登录（用户名密码或邀请链接）。
 - 有公网 IPv4 时也可以在路由器上做端口转发，但这会把家里的电脑直接暴露在公网上，优先考虑上面的方式。
 
 ## 操作
@@ -232,6 +259,7 @@ RENDER_E2E=1 node --test 'test/render/*.browser.test.js'   # 渲染测试，部�
 An **unofficial, non-commercial fan remake** of Arknights' seasonal auto-chess tower-defense mode *Stronghold Protocol: Covenant*, played in the browser: solo, or 1–4 player co-op (AI teammates can fill seats). Combat is simulated in each player's browser, so a low-power PC can host.
 
 - **Run:** download the all-in-one bundle from [Releases](../../releases/latest), install Node.js 22 or 24, then double-click `scripts\start-windows.bat` (Windows) or run `./scripts/start.sh` (macOS / Linux) and open <http://localhost:3000>. From source: `npm install && npm run setup && npm start` (setup downloads ~250 MB of art from public mirrors; the official 3D board needs a local Arknights client to extract, otherwise the 2D board is used).
+- **This fork** adds client-side art (`SP_ASSETS=client`: the server keeps no art, every player imports the art pack into their own browser once — from a zip file or a URL — and a service worker serves it) and `scripts/deploy.sh`, a one-command Docker + Caddy deployment for a Linux server with a domain (automatic HTTPS, basic-auth or invite-link login, the pack hosted at `/pack/`). See [docs/DEPLOY.md](docs/DEPLOY.md).
 - **Play with friends:** create a co-op room and share the 4-letter key or the `?room=KEY` link. On a LAN, use the address printed at start; otherwise use a virtual-LAN tool, a tunnel or a VPS — see [docs/DEPLOY.md](docs/DEPLOY.md).
 - **Disclaimer:** not affiliated with or endorsed by Hypergryph or Yostar. All Arknights names, art, audio, text and data are © their respective owners and are **not** covered by this project's GPL licence. For study and personal non-commercial use only — no selling, paid distribution, paid servers or monetisation of any kind. Content will be removed on request of the rights holders. Provided "as is", without warranty.
 - **License:** code GPL-3.0-or-later ([LICENSE](LICENSE)); game assets excluded.

@@ -1,0 +1,46 @@
+# deploy/docker-compose.yml — game server + Caddy (HTTPS, login, the art pack at /pack/). Managed by scripts/deploy.sh,
+# which writes deploy/.env and deploy/caddy/Caddyfile next to this file (docs/DEPLOY.md「一键部署」).
+#
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+#
+# The game container keeps no art (SP_ASSETS=client): players import the pack into their browsers, from /pack/ here
+# (deploy/pack, built by the Dockerfile `tools` stage), from SP_ASSET_URL, or from a zip file. Only Caddy is published.
+name: stronghold
+
+services:
+  game:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: stronghold-protocol:local
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: "3000"
+      SP_ASSETS: client
+      SP_ASSET_URL: ${SP_ASSET_URL:-}
+      SP_VERIFY: ${SP_VERIFY:-off}
+      SP_COMBAT: ${SP_COMBAT:-client}
+      # Caddy is a private-network peer: its X-Forwarded-For is trusted, so per-network limits see the real players
+      TRUST_PROXY: auto
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - game
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy:/etc/caddy:ro
+      - ./pack:/srv/pack:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

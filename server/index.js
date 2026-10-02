@@ -13,7 +13,13 @@
 //     compressed once and cached in memory); strong ETag + Last-Modified with 304s; Cache-Control
 //     (html & code/data: no-cache + revalidate; public/assets|fonts|vendor: 1 day; any `?v=` URL: immutable);
 //     single byte-range requests (206/416, used by <audio>); traversal & dotfile protection; 404 page.
-//   * GET /healthz → JSON status (protocol `version`, release `app`, rooms, matches, sessions, sockets).
+//   * GET /healthz → JSON status (protocol `version`, release `app`, rooms, matches, sessions, sockets, `assets` mode).
+//   * GET /client-config.json → { assets: 'client' | 'server', sources: [{ url, label }], hash } for the 素材包 boot gate
+//     (public/js/assetpack/gate.js). SP_ASSETS=client: the art lives in each player's browser (imported pack, served by
+//     public/sw.js), the server needs no public/assets; 'server' = the classic setup; 'auto' (default) = 'server' when
+//     public/assets holds files, else 'client'. SP_ASSET_URL: download sources offered to players (space / comma
+//     separated; a directory with pack.json or a .zip; absolute or site-relative such as /pack/). Files that do exist
+//     under public/assets are served in either mode.
 //   * WebSocket (ws) at /ws, maxPayload 64 KB → server/net.js Network → server/lobby.js Lobby.
 //   * Env: PORT (default 3000), HOST (default 0.0.0.0), TRUST_PROXY ('auto' default: honour CF-Connecting-IP /
 //     X-Real-IP / X-Forwarded-For only from loopback/private peers such as a local cloudflared; '1' always; '0' never).
@@ -460,6 +466,41 @@ export function lanUrls(port) {
   return out;
 }
 
+/**
+ * SP_ASSETS env → 'client' | 'server' ('auto': 'server' when `publicDir/assets` has entries).
+ * @param {string | undefined} v
+ * @param {string} publicDir
+ */
+export function resolveAssetsMode(v, publicDir) {
+  const s = String(v ?? '').trim().toLowerCase();
+  if (s === 'client' || s === 'browser' || s === 'external') return 'client';
+  if (s === 'server' || s === 'local') return 'server';
+  try {
+    return fs.readdirSync(path.join(publicDir, 'assets')).some((n) => !n.startsWith('.')) ? 'server' : 'client';
+  } catch {
+    return 'client';
+  }
+}
+
+/**
+ * SP_ASSET_URL env → [{ url, label }]. Entries are separated by whitespace or commas; `label=url` names one. Only
+ * http(s) URLs and site-relative paths ('/pack/') are kept.
+ * @param {string | undefined} v
+ */
+export function parseAssetSources(v) {
+  const out = [];
+  for (const raw of String(v ?? '').split(/[\s,]+/)) {
+    if (!raw) continue;
+    const eq = raw.indexOf('=');
+    const hasLabel = eq > 0 && !/^[a-z]+:/i.test(raw.slice(0, eq)) && !raw.slice(0, eq).includes('/');
+    const url = hasLabel ? raw.slice(eq + 1) : raw;
+    const label = hasLabel ? raw.slice(0, eq) : url;
+    if (!/^https?:\/\/[^\s]+$/i.test(url) && !/^\/[^/\s][^\s]*$|^\/$/.test(url)) continue;
+    if (!out.some((o) => o.url === url)) out.push({ url, label });
+  }
+  return out;
+}
+
 /** TRUST_PROXY env → net.js trustProxy ('auto' unless explicitly on/off). @param {string | undefined} v */
 export function parseTrustProxy(v) {
   const s = String(v ?? '').trim().toLowerCase();
@@ -488,9 +529,11 @@ function makeLogger(quiet) {
  *   ratePerSec?: number, rateBurst?: number, maxConnections?: number, maxRooms?: number,
  *   maxConnectionsPerAddr?: number, maxRoomsPerAddr?: number, maxMatchesPerAddr?: number, resyncMinGapMs?: number,
  *   heavyPerSec?: number, heavyBurst?: number, trustProxy?: 'auto' | boolean, soloReconnectWindowMs?: number,
+ *   assets?: 'client' | 'server' | 'auto', assetSources?: { url: string, label: string }[],
  * }} [opts]
  * @returns {Promise<{ port: number, host: string, url: string, server: http.Server, wss: WebSocketServer,
- *                     lobby: Lobby, network: Network, registry: SessionRegistry, close: () => Promise<void> }>}
+ *                     lobby: Lobby, network: Network, registry: SessionRegistry, assets: 'client' | 'server',
+ *                     close: () => Promise<void> }>}
  */
 export async function startServer(opts = {}) {
   const port = opts.port ?? (process.env.PORT != null && process.env.PORT !== '' ? Number(process.env.PORT) : 3000);
@@ -518,6 +561,13 @@ export async function startServer(opts = {}) {
   const network = new Network({ registry, handler: lobby, log, options: netOptions });
   const serveStatic = createStaticHandler({ publicDir, dataDir, sharedDir, log });
   const startedAt = Date.now();
+  const assetsMode = opts.assets === 'client' || opts.assets === 'server' ? opts.assets : resolveAssetsMode(opts.assets ?? process.env.SP_ASSETS, publicDir);
+  const clientConfig = {
+    assets: assetsMode,
+    sources: opts.assetSources ?? parseAssetSources(process.env.SP_ASSET_URL),
+    hash: (data && data.assets && typeof data.assets.hash === 'string') ? data.assets.hash : null,
+    app: APP_VERSION,
+  };
 
   const server = http.createServer((req, res) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -541,8 +591,12 @@ export async function startServer(opts = {}) {
     if (parts.rawPath === '/healthz') {
       sendJson(req, res, 200, {
         ok: true, version: PROTOCOL_VERSION, app: APP_VERSION, uptimeSec: Math.round((Date.now() - startedAt) / 1000),
-        sockets: network.connectionCount, sessions: registry.size, ...lobby.stats(),
+        sockets: network.connectionCount, sessions: registry.size, assets: assetsMode, ...lobby.stats(),
       });
+      return;
+    }
+    if (parts.rawPath === '/client-config.json') {
+      sendJson(req, res, 200, clientConfig);
       return;
     }
     await serveStatic(req, res, parts.rawPath, parts.query);
@@ -612,7 +666,7 @@ export async function startServer(opts = {}) {
     return closing;
   }
 
-  return { port: actualPort, host, url, server, wss, lobby, network, registry, close };
+  return { port: actualPort, host, url, server, wss, lobby, network, registry, assets: assetsMode, close };
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -641,6 +695,9 @@ async function main() {
   }
   console.log(`\n  卫戍协议：盟约 · Stronghold Protocol: Covenant v${APP_VERSION}`);
   console.log(`  Local:   ${srv.url}`);
+  console.log(srv.assets === 'client'
+    ? '  Assets:  client — players import the art pack in their browser (SP_ASSET_URL / tools/pack-assets.mjs; needs https)'
+    : '  Assets:  server — public/assets is served to every player');
   if (srv.host === '0.0.0.0' || srv.host === '::') {
     for (const u of lanUrls(srv.port)) console.log(`  LAN:     ${u}`);
   }

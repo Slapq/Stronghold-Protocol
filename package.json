@@ -32,6 +32,7 @@
     "postinstall": "node tools/vendor.mjs",
     "setup": "node tools/setup.mjs",
     "doctor": "node tools/doctor.mjs",
+    "pack-assets": "node tools/pack-assets.mjs",
     "launch": "node scripts/launch.mjs"
   },
   "engines": {

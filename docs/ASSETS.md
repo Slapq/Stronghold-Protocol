@@ -249,6 +249,16 @@ The 2026-09-27 verification pass also checked:
 - **Browser:** headless Chrome loads and animates all 529 Spine models with the vendored PixiJS 7.4.2 and pixi-spine 4.0.6, with no console errors. Chrome's font sanitizer also accepts the three WOFF2 files.
 - **Official data:** 771 provenance checks against the official data (`activity_table`, `skill_table`, `models_data.json`) all match: avatars, portraits, E2 art, bond, band and item icons, and enemy skeleton files.
 
+## Art packs (client-side art)
+
+With `SP_ASSETS=client` the game server keeps no art: each player imports an **art pack** into the browser (Cache Storage)
+and `public/sw.js` serves it under the URLs above (`/assets/**`, `/fonts/**`, `/data/assets.json`,
+`/data/local-assets.json`). Format (`shared/assetPack.js`): a zip or a web directory holding `pack.json`
+(`{ format: "stronghold-assets", version: 1, hash, app, createdAt, bytes, files: [[path, size], …] }`) next to
+`assets/`, `fonts/` and `data/`. `node tools/pack-assets.mjs [--dir <dir>] [--zip <file> | --no-zip]` builds one from
+`public/assets`, `public/fonts` and the two manifests; the importer (`public/js/assetpack/importer.js`) also accepts the
+upstream release bundle zip (`…/public/assets/**` etc.). Usage and deployment: docs/DEPLOY.md「素材与服务器分离」.
+
 ## Licensing and credits
 
 The project's code is GPL-3.0-or-later (`LICENSE`); none of the items below is covered by it. Details: `NOTICE.md` (scope, non-commercial terms) and `THIRD-PARTY-NOTICES.md` (libraries, fonts, licence texts).

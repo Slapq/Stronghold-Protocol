@@ -18,7 +18,8 @@
 //
 // Options:
 //   --check          report only, change nothing (exit 1 when something essential is missing)
-//   --no-assets      skip the art/audio download
+//   --no-assets      skip the art/audio download (also the default with SP_ASSETS=client: players import the art in
+//                    their browsers, docs/DEPLOY.md「素材与服务器分离」)
 //   --no-local       skip the local-client detection and extraction
 //   --local          extract from the local client without asking (re-extracts when already done)
 //   --game <dir>     AssetBundle root of the local client (…/StreamingAssets/AB/Windows or PlayCover …/Documents/Bundles)
@@ -314,7 +315,9 @@ function ensureVenv(py, log) {
 // ---------------------------------------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const o = { check: false, assets: true, local: 'ask', game: null, yes: false, quiet: false, help: false };
+  // SP_ASSETS=client: the art lives in the players' browsers (imported pack), the server needs none
+  const clientArt = String(process.env.SP_ASSETS || '').trim().toLowerCase() === 'client';
+  const o = { check: false, assets: !clientArt, local: 'ask', game: null, yes: false, quiet: false, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--check') o.check = true;
@@ -394,7 +397,7 @@ async function main() {
 
   // 5. assets
   let assets = checkAssets();
-  if (!opts.assets) add(assets.ok ? 'ok' : 'skip', '美术/音频 public/assets', assets.ok ? `${assets.total} 个文件` : '已跳过（--no-assets）');
+  if (!opts.assets) add(assets.ok ? 'ok' : 'skip', '美术/音频 public/assets', assets.ok ? `${assets.total} 个文件` : String(process.env.SP_ASSETS || '').trim().toLowerCase() === 'client' ? '已跳过（SP_ASSETS=client：素材由玩家在浏览器导入）' : '已跳过（--no-assets）');
   else if (!assets.ok && deps.ok && !opts.check) {
     const what = !assets.present ? `首次下载约 ${assets.bytes ? mb(assets.bytes) : '250 MB'}，可随时中断，重新运行会续传`
       : `补全缺失的 ${assets.missing} 个文件`;

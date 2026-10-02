@@ -1,0 +1,57 @@
+/* ==========================================================================================
+   screens/assetpack.css — 素材包 import / manage screen (js/assetpack/gate.js), shown before the
+   title when the server does not host the art (SP_ASSETS=client) or with `?assets`.
+   ========================================================================================== */
+
+.ap-screen {
+  align-items: center;
+  justify-content: center;
+  padding: .3rem .4rem;
+  overflow-y: auto;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(78, 216, 175, .08), transparent 60%),
+    var(--bg-0);
+}
+.ap-screen.is-drag .ap-card { border-color: var(--mint-glow); box-shadow: 0 0 .3rem rgba(23, 249, 183, .25); }
+
+.ap-card {
+  position: relative;
+  width: min(9.6rem, 100%);
+  margin: auto;
+  padding: .34rem .4rem .3rem;
+  border: 1px solid var(--line);
+  background: var(--bg-glass);
+  display: flex;
+  flex-direction: column;
+  gap: .16rem;
+}
+.ap-title { margin: 0; font-size: .38rem; font-weight: 900; letter-spacing: .06em; color: var(--text-hi); }
+.ap-text { margin: 0; font-size: .17rem; color: var(--text-md); }
+.ap-text b { color: var(--mint-glow); font-weight: 700; }
+.ap-hint { margin: 0; font-size: .13rem; color: var(--text-lo); }
+.ap-warn { margin: 0; font-size: .15rem; color: var(--amber); }
+.ap-error { margin: 0; font-size: .15rem; color: var(--red-premium); word-break: break-word; }
+
+.ap-installed {
+  display: grid;
+  gap: .06rem;
+  padding: .14rem .18rem;
+  border-left: 2px solid var(--mint-glow);
+  background: rgba(78, 216, 175, .06);
+  font-size: .15rem;
+}
+.ap-installed > div { display: flex; gap: .16rem; }
+.ap-installed span { min-width: .7rem; color: var(--text-lo); }
+.ap-installed b { font-weight: 500; color: var(--text-hi); }
+.ap-src { word-break: break-all; }
+
+.ap-sources { display: flex; flex-direction: column; gap: .18rem; }
+.ap-group { display: flex; flex-direction: column; gap: .08rem; }
+.ap-group__title { font-size: .14rem; font-weight: 700; letter-spacing: .08em; color: var(--text-lo); }
+.ap-row { display: flex; gap: .1rem; align-items: stretch; }
+.ap-row > .field { flex: 1; min-width: 0; }
+
+.ap-busy { display: flex; flex-direction: column; gap: .1rem; padding: .1rem 0; }
+.ap-busy__meta { display: flex; justify-content: space-between; font-size: .14rem; color: var(--text-md); font-variant-numeric: tabular-nums; }
+
+.ap-actions { display: flex; flex-wrap: wrap; gap: .12rem; justify-content: flex-end; margin-top: .06rem; }

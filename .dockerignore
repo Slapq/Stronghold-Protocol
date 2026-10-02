@@ -21,3 +21,6 @@ scripts/service.env.cmd
 Thumbs.db
 .env
 .env.*
+# deploy state (generated config, credentials, the hosted art pack) and built packs
+deploy
+dist

@@ -51,12 +51,21 @@ const QUALITY = [['high', '高'], ['medium', '中'], ['low', '低']];
  * Settings modal.
  * @param {{ open: boolean, onClose: Function }} props
  */
+/** 素材包 screen (assetpack/gate.js): a reload with `?assets`; the session resumes afterwards like any reload. */
+function openAssetPack() {
+  if (!confirm('打开素材包管理？页面会重新载入（对局中会短暂断线，10 分钟内可回到原座位）。')) return;
+  const url = new URL(location.href);
+  url.searchParams.set('assets', '1');
+  location.assign(url.pathname + url.search);
+}
+
 export function SettingsModal({ open, onClose }) {
   const s = useSettings();
   const [tested, setTested] = useState(false);
   const [touchUi] = useState(() => detectFeatures().coarse && !detectFeatures().fine);
   return html`<${Modal} open=${open} onClose=${onClose} title="设置" micro="SETTINGS" width="7.4rem"
     actions=${html`<${Button} variant="secondary" icon="book" class="set-guide" onClick=${() => openGuide(0)}>玩法说明<//>
+      <${Button} variant="secondary" icon="expand" title="导入 / 更新 / 删除浏览器里的素材包" onClick=${openAssetPack}>素材包<//>
       <${Button} variant="primary" icon="check" onClick=${onClose}>完成<//>`}>
     <div class="set-list">
       <${Slider} label="背景音乐" micro="BGM" icon="play" value=${s.bgm} onInput=${(v) => updateSettings({ bgm: v })} />

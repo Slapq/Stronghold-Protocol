@@ -15,6 +15,67 @@
 
 服务器**无状态**：房间和对局只存在内存里，没有数据库和存档，**不需要备份**。重启服务器会结束正在进行的对局（包括断线后本可在 24 小时内回来继续的独立模拟）。
 
+## 一键部署（Linux 云服务器 + 域名）
+
+适合：一台有**公网 IP** 的 Linux 服务器（VPS / 云主机），有一个**域名**，只想和朋友一起玩。`scripts/deploy.sh` 用 Docker Compose（`deploy/docker-compose.yml`）跑两个容器：
+
+- **game**：游戏服务器，`SP_ASSETS=client`，**不放任何素材**，只在 Docker 内网里监听 3000；
+- **caddy**：对外的 80 / 443，自动申请 HTTPS 证书，在所有请求前加**登录**，并在 `/pack/` 提供素材包下载。
+
+```bash
+# 0. 在域名服务商添加 A 记录：game.example.com → 服务器公网 IP；云服务器安全组放行 TCP 80、443（和 UDP 443）
+git clone https://github.com/Slapq/Stronghold-Protocol.git && cd Stronghold-Protocol
+sudo scripts/deploy.sh --domain game.example.com --email you@example.com
+```
+
+脚本依次：缺 Docker 时用 get.docker.com 安装（大陆服务器可以加 `DOCKER_MIRROR=Aliyun`）→ 检查域名解析和 80 / 443 端口 → 创建登录 → 在一个临时容器里下载素材并打成素材包，放到 `deploy/pack/`（约 250 MB，第一次要几分钟，中断后重跑会续传）→ 生成并校验 `deploy/caddy/Caddyfile` → 放行 ufw / firewalld → 启动。最后会打印游戏地址和账号。
+
+| 选项 | 说明 |
+|---|---|
+| `--auth basic`（默认） | 用户名 + 密码，浏览器弹框输入一次后记住。默认建一个 `friend` 账号；`--user 名字` 可以重复，建多个账号。密码随机生成，记在 `deploy/credentials.txt`（只有 root 可读） |
+| `--auth link` | 不用输密码：把邀请链接 `https://域名/join/<密钥>` 发给朋友，打开一次就写入 Cookie，之后直接用游戏地址。手机上更方便；链接泄露时 `scripts/deploy.sh new-link` 换一个（旧链接和旧 Cookie 一起失效） |
+| `--auth none` | 不设登录（会要求确认）。不推荐：知道地址的人都能进来 |
+| `--pack build`（默认） | 在服务器上构建素材包并放在 `https://域名/pack/`，朋友在网页里点一下就能导入 |
+| `--pack none` | 服务器上完全不放素材：把素材包 zip 直接发给朋友，或用 `--asset-url` 指向别处 |
+| `--pack <目录或 zip>` | 用你已有的素材包（`node tools/pack-assets.mjs` 生成的目录 / zip，或原项目 Releases 的整合包 zip） |
+| `--asset-url <地址>` | 额外推荐的下载地址（可重复），例如对象存储 / CDN 上的素材包目录；跨域地址要允许 CORS |
+
+日常管理（都在项目目录里，用 `sudo`）：
+
+| 命令 | 作用 |
+|---|---|
+| `scripts/deploy.sh add-user 名字` / `del-user 名字` / `users` | 加账号（打印密码）/ 删账号 / 查看账号或邀请链接 |
+| `scripts/deploy.sh update` | `git pull`、重新构建、重启（会结束正在进行的对局）；素材包保留，`update --pack build` 同时刷新素材 |
+| `scripts/deploy.sh pack` | 重新下载 / 构建素材包（只下载有变化的文件）；玩家在「设置 → 素材包」里重新导入 |
+| `scripts/deploy.sh status` / `logs` / `down` | 容器状态 / 实时日志 / 停止（`deploy/` 里的设置和素材包都保留，重跑脚本即可启动） |
+
+设置保存在 `deploy/.env`；重跑 `scripts/deploy.sh`（可以只带要改的选项）会沿用原来的设置和密码。
+
+已经有 Nginx / Caddy 占用 80 / 443 时：不用这个脚本，按 [2.4](#24-反向代理与-https有域名时) 自己配置反向代理，再按下一节设置 `SP_ASSETS=client` 和 `SP_ASSET_URL`，并在代理上加 basic auth。
+
+## 素材与服务器分离
+
+美术 / 音频（版权归鹰角网络 / Yostar）可以完全不放在游戏服务器上：
+
+- 服务器以 `SP_ASSETS=client` 运行（`public/assets` 为空时默认就是这样），`node tools/setup.mjs` 不再下载素材。
+- 玩家第一次打开网页时看到「**导入素材包**」页面，三选一：
+  1. 点服务器推荐的地址（`SP_ASSET_URL`，例如一键部署的 `/pack/`）；
+  2. 输入任意网址：放着 `pack.json` 的目录（推荐，并发下载、可断点续传）或一个 `.zip`；
+  3. 选择 / 拖入本地 zip：`tools/pack-assets.mjs` 打出的素材包，或原项目 Releases 的整合包 zip（只取其中的 `public/assets`、`public/fonts`、`data/assets.json`、`data/local-assets.json`）。
+- 素材存进浏览器的 Cache Storage（约 250 MB，会请求「持久存储」以免被清理），由 Service Worker（`public/sw.js`）按原来的地址 `/assets/…`、`/fonts/…`、`/data/assets.json`、`/data/local-assets.json` 返回给游戏。之后进游戏、对局中都不再从服务器下载素材。
+- 「设置 → 素材包」可以查看、重新导入或删除。也可以先不导入，用占位画面进入。
+- Service Worker 需要**安全上下文**：必须通过 `https://` 访问（本机 `http://localhost` 也可以）。局域网 `http://192.168.x.x` 访问时浏览器不允许导入，这种情况请继续用 `SP_ASSETS=server`（服务器提供素材，原来的方式）。
+- 已经导入素材包的浏览器，即使服务器是 `SP_ASSETS=server` 也会优先用本地的素材，省掉服务器流量。
+
+**自己打素材包**（任何有素材的机器上，先 `node tools/setup.mjs`）：
+
+```bash
+node tools/pack-assets.mjs                       # → dist/stronghold-assets-<hash>.zip（发给朋友导入）
+node tools/pack-assets.mjs --dir /srv/pack --no-zip   # → 网页目录：pack.json + assets/ fonts/ data/
+```
+
+网页目录可以放在任何静态网站 / 对象存储 / CDN 上，然后让游戏服务器推荐它：`SP_ASSET_URL="素材=https://cdn.example.com/sp/"`（不同域名时需要 `Access-Control-Allow-Origin`；和游戏同域名时不需要）。也可以不经过 git：`docker build --target tools -t stronghold-tools . && docker run --rm -v "$PWD/pack:/out" stronghold-tools`。
+
 ## 1. Windows 小主机：一步步
 
 ### 1.1 安装与首次启动
@@ -131,7 +192,7 @@ cloudflared tunnel --url http://localhost:3000
 2. 路由器「虚拟服务器 / 端口转发」：外部端口 3000（或任意端口）→ 内部 `主机IP:3000`，TCP。
 3. 朋友访问 `http://<你的公网 IP>:外部端口`。
 
-注意：游戏没有账号系统，知道地址的人都能进来。服务器对来自互联网的连接有按网络的数量限制（每个网络最多 64 个连接，房间 / 对局数量也有上限），但仍建议不玩时关掉转发，或优先用 Tailscale。
+注意：游戏没有账号系统，知道地址的人都能进来（有域名的云服务器可以用上面的[一键部署](#一键部署linux-云服务器--域名)加登录）。服务器对来自互联网的连接有按网络的数量限制（每个网络最多 64 个连接，房间 / 对局数量也有上限），但仍建议不玩时关掉转发，或优先用 Tailscale。
 
 ### 2.4 反向代理与 HTTPS（有域名时）
 
