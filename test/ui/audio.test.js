@@ -357,6 +357,7 @@ describe('operator voice', () => {
       a.handleBattleEvents([['spawn', { id: 7, side: 'enemy', kind: 'enemy', spine: 'enemy_x' }]]);
       await settle();
       a.stopVoice();
+      a.battleEnd(); // screen unmount preserves the identity of the current battle
       a.battleStart(LEADER, 'COMBAT:3');
       advance(3000);
       a.handleBattleEvents([['spawn', { id: 8, side: 'enemy', kind: 'enemy', spine: 'enemy_x' }]]);
@@ -473,6 +474,85 @@ describe('operator voice', () => {
       a.handleBattleEvents([['skill', 2, true]]);
       await settle();
       assert.ok(urls.every((u) => u.includes(`/${LEADER}/`)) && urls.length === 1, 'the own operator');
+    } finally { restore(); }
+  });
+
+  test('pending encounter cannot speak after battle end, a new battle, or match end', async (t) => {
+    const { a, restore } = await voiceRig();
+    try {
+      t.mock.timers.enable({ apis: ['setTimeout'] });
+      const spoken = [];
+      a.voice = (leader, role) => { spoken.push([leader, role]); return true; };
+      for (const finish of [() => a.battleEnd(), () => a.battleStart(OP), () => a.matchEnd({ victory: true })]) {
+        a.battleStart(LEADER);
+        a._encounter();
+        finish();
+        t.mock.timers.tick(4000);
+        assert.equal(spoken.filter(([, role]) => role === 'start').length, 0);
+      }
+    } finally { t.mock.timers.reset(); restore(); }
+  });
+
+  test('failed voice loads do not consume cooldown; successful playback does', async () => {
+    const { a, restore } = await voiceRig();
+    try {
+      a._buffer = async () => null;
+      assert.equal(a.voice(OP, 'combat', 'SKILL_PASSIVE_NOR'), true);
+      await Promise.resolve();
+      assert.equal(a.voiceLast.has('SKILL_PASSIVE'), false);
+      a._buffer = async () => { throw new Error('decode failed'); };
+      assert.equal(a.voice(OP, 'combat', 'SKILL_PASSIVE_NOR'), true);
+      await Promise.resolve();
+      assert.equal(a.voiceLast.has('SKILL_PASSIVE'), false);
+      a._buffer = async () => ({ duration: 0 });
+      assert.equal(a.voice(OP, 'combat', 'SKILL_PASSIVE_NOR'), true);
+      await Promise.resolve();
+      assert.equal(a.voiceLast.has('SKILL_PASSIVE'), true);
+      a.stopVoice();
+      assert.equal(a.voice(OP, 'combat', 'SKILL_PASSIVE_NOR'), false);
+    } finally { restore(); }
+  });
+
+  test('match result voice is requested once and resets for the next match', async () => {
+    const { a, restore } = await voiceRig();
+    try {
+      let calls = 0;
+      a.voice = () => { calls++; return true; };
+      a.battleStart(LEADER);
+      a.matchEnd({ victory: true });
+      a.matchEnd({ victory: true });
+      assert.equal(calls, 1);
+      a.battleStart(OP);
+      a.matchEnd({ victory: false });
+      assert.equal(calls, 2);
+    } finally { restore(); }
+  });
+
+  test('slow loading starts shared cooldown at playback; ending or hiding cancels pending audio', async () => {
+    const { a, advance, restore } = await voiceRig();
+    try {
+      let resolve;
+      a._buffer = () => new Promise(r => { resolve = r; });
+      a.voice(OP, 'combat', 'SKILL_PASSIVE_NOR');
+      advance(5000);
+      resolve({ duration: 0 }); await Promise.resolve();
+      a.stopVoice();
+      advance(9999);
+      assert.equal(a.voice(OP, 'combat', 'SKILL_PASSIVE_IMP'), false);
+      advance(2);
+      assert.equal(a.voice(OP, 'combat', 'SKILL_PASSIVE_IMP'), true);
+      a.battleEnd();
+      resolve({ duration: 0 }); await Promise.resolve();
+      assert.equal(a.voiceNow, null);
+      assert.equal(a.voice(OP, 'combat', 'SKILL_PASSIVE_IMP'), true);
+      a.win.document.hidden = true;
+      a._onVis();
+      resolve({ duration: 0 }); await Promise.resolve();
+      assert.equal(a.voiceNow, null);
+      a.win.document.hidden = false;
+      assert.equal(a.voice(OP, 'combat', 'SKILL_PASSIVE_IMP'), true);
+      a.battleEnd();
+      resolve(null); await Promise.resolve();
     } finally { restore(); }
   });
 
