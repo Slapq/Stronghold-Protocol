@@ -16,9 +16,7 @@
   "routes": [{ "pattern": "xn--rlr.rinko.ai", "custom_domain": true }],
   // The build first copies the local-client art (3D board, autochess UI sprites, …) from 晴猫's site, which extracted it
   // from a game client; Workers Builds has none (tools/fetch-local-art.mjs; if it fails, the 2D board is used).
-  // SP_WORKER_PAID_PLAN=1: this Worker (current rules + 3 retained replay engines) is ~3.6 MiB gzip, over the free plan's
-  // 3 MiB — the build check allows up to 10 MiB (the account must be on Workers Paid; docs/ACCOUNTS-HISTORY.md)
-  "build": { "command": "node tools/fetch-local-art.mjs --from=https://stronghold.lunar.ag && SP_WORKER_PAID_PLAN=1 npm run build:worker" },
+  "build": { "command": "node tools/fetch-local-art.mjs --from=https://stronghold.lunar.ag && npm run build:worker" },
   "assets": {
     "directory": "./dist/client",
     "binding": "ASSETS",

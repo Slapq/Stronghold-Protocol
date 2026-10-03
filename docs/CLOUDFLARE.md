@@ -11,6 +11,7 @@
 - 当前素材约 321 MiB（其中干员战斗语音中文 + 日文约 73 MB），拆分为约 6,800 个小文件，构建后连代码共约 8,000 个。Static Assets 的限制按文件大小 / 数量计算，当前文件均小于 25 MiB、总数低于免费计划 20,000 个文件限制。素材不计入 Worker JS 包体，也不经过房间对象。
 - 当前版本不需要 R2。后续若需要公开下载数百 MiB 的完整 ZIP，或资源频繁更新且需要独立生命周期，可把完整包或素材迁往 R2 并配置自定义域名 / 缓存。完整 ZIP 不能放进 Static Assets。
 - 一个房间一个 DO 保证房间事件顺序，避免多个 Worker 实例各自保有不同状态，也无需 WebRTC 的 NAT 穿透、信令与 TURN。等待房间使用 WebSocket Hibernation，活跃对局的定时器会保持实例运行。
+- Worker 包体须在免费计划的 3 MiB（gzip）以内，构建会检查。上游为回放 / 断线恢复保留历史规则版本的引擎（`replay-versions.json`、`replay-versions/`），每个约 0.7 MiB；本站没有启用历史与回放，这些版本也从没在本站运行过，所以不保留：`replay-versions.json` 为空，构建只打包当前规则（恢复一个在旧规则下开始的房间时按当前规则恢复）。同步上游时保留本站的空清单，不要提交构建生成的 `replay-versions/*.json.gz`。
 - 亚太 `locationHint` 是尽力提示，不能保证落在指定地区。大陆用户的实际连通性和延迟取决于网络线路，资源本地导入只能减少素材下载等待；部署后请电信 / 联通 / 移动的朋友在晚高峰实测自定义域名。
 
 参考：[Static Assets 限额](https://developers.cloudflare.com/workers/static-assets/platform/limits/)、[DO WebSocket](https://developers.cloudflare.com/durable-objects/best-practices/websockets/)、[DO 定价](https://developers.cloudflare.com/durable-objects/platform/pricing/)。静态资源和房间计算是不同的计费项，不承诺多人长时间游戏一定完全免费。本项目不会自动升级收费计划。
