@@ -400,7 +400,7 @@ function MatchScreen() {
     const sides = field.sides && typeof field.sides === 'object' ? field.sides : null;
     const side = sides && sides[myId] ? sides[myId] : members.length > 1 && members.indexOf(myId) === 1 ? 'R' : 'L';
     // local simulation (client-side combat) feeds a frame per animation frame; the field is drawn render/app.js
-    // RENDER_DELAY behind it like a network feed (the attack animations' look-ahead), at the battle speed
+    // LOOK_AHEAD (1 game s) behind it like a network feed (the attack animations' look-ahead), at the battle speed
     view.raw?.setLocalFeed?.({ on: !!field.local, speed: field.speed });
     setLayer('ALL');
     // a lone player's boss field (solo modes, the odd player of a co-op Final Assault: the `_s` templates route every
@@ -440,7 +440,7 @@ function MatchScreen() {
     let last = 0;
     let pending = null;
     const flush = () => { clearTimeout(pending); pending = null; last = performance.now(); setHud(hudRef.current); };
-    // the render engine draws the battle render/app.js RENDER_DELAY behind the frames: the HUD and the battle sound follow
+    // the render engine draws the battle render/app.js LOOK_AHEAD (1 game s) behind the frames: the HUD and the battle sound follow
     // the drawn battle (its 'battleEvents'); the DOM fallback draws frames as they come. The own field's values — kills,
     // DP, boss HP, leaks / LP −N, 联防 ×N, bond layers, the 作战结束 pill, the unit card's HP — are released through one
     // queue at the time their frame is drawn; the capsule's kills and everything of the battle slice skip the 5 Hz
@@ -891,6 +891,8 @@ function MatchScreen() {
   }, []);
   const togglePauseRef = useRef(togglePause);
   togglePauseRef.current = togglePause;
+  // the render engine stops the battle picture (units, effects, its render clock) with the sim, and resumes it in place
+  useEffect(() => { view?.raw?.setPaused?.(paused); }, [view, paused]);
 
   // a press on the field deselects (a tap on a piece selects it again at release — see pieceClick)
   useEffect(() => {

@@ -49,7 +49,7 @@ function recordStrikes(a) {
   return strikes;
 }
 
-const LOOKAHEAD = 1.0; // game s (render/app.js: the render clock trails the newest snapshot by 1 game s at the live 2×)
+const LOOKAHEAD = 1.0; // game s (render/app.js LOOK_AHEAD: the render clock trails the newest snapshot by 1 game s)
 
 /**
  * Drive an actor the way render/app.js and units.js do: an attack at `times[k]` (game s; its time is its identity) is

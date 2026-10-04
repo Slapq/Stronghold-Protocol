@@ -29,7 +29,7 @@ export function ReplayScreen() {
     const r=createReplayRunner({engine:loaded.engine,onField:meta=>{
       const stage=loaded.engine.stage?.(meta.stageId) || gd.stage(meta.stageId);if(stage)view.setStage(stage);
       view.enterBattle(meta);view.setCamera(meta.kind==='hidden'?'boss':meta.kind || 'normal',{rect:meta.rect});
-      view.raw?.setLocalFeed?.({on:true,speed:1});},
+      view.raw?.setLocalFeed?.({on:true,speed:r.state().speed});},
       onFrame:frame=>{view.pushEvents(frame.events);view.pushSnapshot(frame.snapshot);}});
     runner.current=r;
     let previous=performance.now(),raf;
@@ -49,9 +49,9 @@ export function ReplayScreen() {
     ${battle && !battle.complete?html`<p class="t-lo" role="status">此战场录制不完整，无法播放。结算结果仍保存在对局记录中。</p>`:null}
     <div ref=${host} class="replay-field" style=${battle?.complete?'':'visibility:hidden'}></div>
     <div class="replay-toolbar">
-      <${Button} disabled=${!battle?.complete} onClick=${()=>state.playing?runner.current?.pause():runner.current?.play()}>${state.playing?'暂停':'播放'}<//>
+      <${Button} disabled=${!battle?.complete} onClick=${()=>{const r=runner.current;view?.raw?.setPaused?.(!!state.playing);state.playing?r?.pause():r?.play();}}>${state.playing?'暂停':'播放'}<//>
       <${Button} variant="ghost" disabled=${!battle?.complete} onClick=${()=>runner.current?.select(battle)}>从头播放<//>
-      ${[0.5,1,2,4].map(speed=>html`<${Button} size="sm" variant=${state.speed===speed?'primary':'ghost'} onClick=${()=>runner.current?.setSpeed(speed)}>${speed}×<//>`)}
+      ${[0.5,1,2,4].map(speed=>html`<${Button} size="sm" variant=${state.speed===speed?'primary':'ghost'} onClick=${()=>{runner.current?.setSpeed(speed);view?.raw?.setLocalFeed?.({on:true,speed});}}>${speed}×<//>`)}
       <span class="num">${Math.floor(state.seconds || 0)} / ${Math.ceil(state.duration || 0)} 秒</span>
     </div></main></div>`;
 }

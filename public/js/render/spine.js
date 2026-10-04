@@ -21,7 +21,7 @@
 //
 // As the original (Arknights' battle animation is the authority; user reports: skill clips cut, sluggish and jerky
 // attacks, Texas sliding, swings at nothing, fast and stiff):
-//   - the renderer draws the battle ~1 game s behind the sim (app.js RENDER_DELAY), so every attack is known before
+//   - the renderer draws the battle ~1 game s behind the sim (app.js LOOK_AHEAD), so every attack is known before
 //     it is shown: a swing starts only for a real attack, from its first frame, timed so that its strike frame
 //     (OnAttack, manifest `hits`) lands on the attack. Nothing starts a swing on a guess;
 //   - a one-shot clip (`Attack`) plays once per attack at its natural speed — sped up when the attack interval is
