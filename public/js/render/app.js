@@ -108,7 +108,7 @@ import { layoutPen, penSignature } from './pen.js';
 import { IDENTITY, bossPrepField, tilesToDisp } from './prepfield.js';
 import { pickOnTile, pickBattle, hitRectAt } from './pick.js';
 import { promotionsOf } from './promote.js';
-import { createLoadGovernor } from './loadlevel.js';
+import { createLoadGovernor, maxAnimInterval } from './loadlevel.js';
 
 const VENDOR = { pixi: '/vendor/pixi.min.js', spine: '/vendor/pixi-spine.js' };
 const PIECE_DIRS = new Set(['UP', 'RIGHT', 'DOWN', 'LEFT']);
@@ -492,8 +492,8 @@ export async function createFieldView(host, options = {}) {
     clipAllowed: () => clipAllowed,
     viewport: () => vp,
     loadLevel: () => loadLevel,
-    // the slowest a Spine model may animate (frames between skeleton updates): never below ~20 updates a second
-    maxAnimInterval: () => Math.max(1, Math.floor(fps / 20)),
+    // the slowest a Spine model may animate (frames between skeleton updates): ~20 updates a second (render/loadlevel.js)
+    maxAnimInterval: () => maxAnimInterval(governor.periodMs),
     surfaceLayer: (row) => tiles.surfaceLayer(row),
   };
   const tiles = new TileField({ ground: layers.ground, overlay: layers.overlay, props: layers.units, anim: layers.anim });
@@ -1353,10 +1353,11 @@ export async function createFieldView(host, options = {}) {
     return interp.pushEvents(list, performance.now() / 1000, t);
   }
 
-  // attack wind-ups: an 'atk' still queued in the buffer starts its Spine clip early enough for the strike frame to
-  // land when the event is rendered (the look-ahead is the interpolation delay, ~0.2 game s)
-  // Every unit also learns how far ahead its next attack is (Infinity: none in the look-ahead) and how far the look-ahead
-  // reaches: an attack loop ends when no attack follows (render/spine.js).
+  // attack wind-ups: an 'atk' still queued in the buffer (up to 1.5 game s ahead of the render clock; the interpolation
+  // delay is 1 game s at the live 2x) starts its Spine clip early enough for the strike frame to land when the event is
+  // rendered — asked every frame until a swing is started for that very attack (the event's time is its identity). Every
+  // unit also learns how far ahead its next attack is (Infinity: none in the look-ahead) and how far the look-ahead
+  // reaches (newest − render clock): an attack loop ends when no attack follows (render/spine.js).
   function windUpAttacks(renderT) {
     upcomingT = renderT;
     nextAtk.clear();
@@ -1372,7 +1373,7 @@ export async function createFieldView(host, options = {}) {
     if (woundUp.has(e)) return;
     const v = views.get(e[1]);
     if (!v || !v.windUp) return;
-    if (v.windUp(t - upcomingT, views.get(e[2]) || null)) woundUp.add(e);
+    if (v.windUp(t - upcomingT, views.get(e[2]) || null, t)) woundUp.add(e);
   }
 
   const EVS = [], EVT = [], HEARD = [];

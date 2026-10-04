@@ -4,7 +4,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { estimatePeriod, createLoadGovernor } from '../../public/js/render/loadlevel.js';
+import { estimatePeriod, createLoadGovernor, maxAnimInterval } from '../../public/js/render/loadlevel.js';
 
 /** Deterministic pseudo-random [0, 1). */
 const rng = (seed) => () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 2 ** 32; };
@@ -62,6 +62,17 @@ describe('load governor', () => {
     assert.equal(Math.max(...run({ period: 1000 / 144, late: () => r() * 2 }).levels), 0);
   });
 
+  test('a 120 / 144 Hz display running at 70–110 fps (every 1st or 2nd vsync) is not struggling', () => {
+    // review of the upstream PR: the budget was the 120 / 144 Hz frame itself, so ~12 ms frames read as too slow
+    for (const hz of [120, 144]) {
+      for (const p2 of [0.2, 0.5, 0.7]) {
+        const r = rng(hz + p2 * 10);
+        const res = run({ secs: 30, period: 1000 / hz, skip: () => (r() < p2 ? 1 : 0), late: () => r() * 1.5 });
+        assert.equal(Math.max(...res.levels), 0, `${hz} Hz, ${p2 * 100} % of frames on the 2nd vsync`);
+      }
+    }
+  });
+
   test('a device that misses most vsyncs, or burns the frame on the CPU, steps up — and back after a calm spell', () => {
     const r = rng(11);
     const slow = run({ secs: 20, skip: () => (r() < 0.8 ? 1 : 0) });
@@ -71,5 +82,17 @@ describe('load governor', () => {
     let level = g.level;
     for (let i = 0; i < 60 * 60 && level > 0; i++) level = g.step(1 / 60, 1000 / 60, 1000 / 60, 4, true);
     assert.equal(level, 0, 'calm again: back to level 0');
+  });
+});
+
+describe('maxAnimInterval', () => {
+  test('about 20 skeleton updates a second from the display period, never every frame', () => {
+    assert.equal(maxAnimInterval(1000 / 30), 2);
+    assert.equal(maxAnimInterval(1000 / 59.94), 3);
+    assert.equal(maxAnimInterval(1000 / 60), 3);
+    assert.equal(maxAnimInterval(1000 / 90), 4);
+    assert.equal(maxAnimInterval(1000 / 120), 6);
+    assert.equal(maxAnimInterval(1000 / 144), 7);
+    assert.equal(maxAnimInterval(NaN), 3);
   });
 });

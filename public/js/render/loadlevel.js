@@ -4,7 +4,10 @@
 // animates small / far units at a lower rate (units.js); it steps back after a calm spell. "Cannot hold" is measured
 // against the display's own frame period or a frame's own CPU time: a capped display (30 fps where the browser or a
 // power-saving mode caps it) is not a struggling device (user report: 30-fps phones ended up at level 3, operators
-// animating every 2nd–6th frame, i.e. 5–15 times a second).
+// animating every 2nd–6th frame, i.e. 5–15 times a second). The budget is the frame period but never less than a
+// 60 Hz frame: a 120 / 144 Hz display running at 70–110 fps is not struggling either (review of the upstream PR,
+// 2026-10). Accepted blind spots of a period-relative budget: a device that steadily presents every 2nd / 3rd vsync,
+// or a variable-refresh display at an arbitrary rate, looks like a slower display — only its CPU time can show it.
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 
@@ -31,6 +34,16 @@ export function estimatePeriod(samples, fallback = 1000 / 60) {
 }
 
 /**
+ * The most frames a Spine model may go between skeleton updates (units.js LOD): about 20 updates a second on the
+ * display's own frame period, at least every 2nd frame (30 Hz: 2, 60 Hz: 3, 120 Hz: 6, 144 Hz: 7). From the period,
+ * not the measured fps: under load the fps fell and this cap with it, down to 1 — every frame, so a struggling device
+ * lost the impostor LOD's savings (review of the upstream PR, 2026-10).
+ */
+export function maxAnimInterval(periodMs) {
+  return Math.max(2, Math.floor(1000 / clamp(periodMs || 1000 / 60, 1000 / 240, 50) / 20 + 0.05));
+}
+
+/**
  * The level governor. step(dt, sampleMs, frameMs, cpuMs, busy) once per frame: `dt` real s since the last frame,
  * `sampleMs` this frame's interval for the period estimate (the animation-frame timestamps' delta — vsync aligned —
  * when available), `frameMs` / `cpuMs` the smoothed frame interval / CPU time, `busy` a crowded field. Returns the level;
@@ -50,8 +63,10 @@ export function createLoadGovernor({ onChange = null } = {}) {
       // measured against the 60 Hz default looked slow for its first seconds)
       if (age >= (estimated ? 2 : 0.5)) { periodMs = estimatePeriod(samples, periodMs); samples.length = 0; age = 0; estimated = true; }
       if (!estimated) return level;
-      if (busy && (frameMs > periodMs * 1.2 || cpuMs > periodMs * 0.75)) { slowFor += dt; fastFor = 0; }
-      else if (frameMs < periodMs * 1.08 && cpuMs < periodMs * 0.5) { fastFor += dt; slowFor = 0; }
+      // `cpuMs`: the view's own frame() work (not the GPU / compositor, not the sim)
+      const ref = Math.max(periodMs, 1000 / 60);
+      if (busy && (frameMs > ref * 1.2 || cpuMs > ref * 0.75)) { slowFor += dt; fastFor = 0; }
+      else if (frameMs < ref * 1.08 && cpuMs < ref * 0.5) { fastFor += dt; slowFor = 0; }
       if (slowFor > 1 && level < 3) { level++; slowFor = 0; fastFor = 0; onChange?.(level); }
       else if (level > 0 && (fastFor > 6 * level || !busy && fastFor > 2)) { level--; fastFor = 0; onChange?.(level); }
       return level;

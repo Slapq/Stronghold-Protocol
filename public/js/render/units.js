@@ -81,6 +81,22 @@ export function targetBelow(view, target) {
   const dx = target.x - view.x, dy = target.y - view.y;
   return dy < -0.5 && -dy >= Math.abs(dx);
 }
+
+/**
+ * A unit's attack interval after a gap of `d` game s between two of its attacks (pure; `prevGap` the gap before): a gap
+ * of up to 1.5 intervals is the rhythm — taken at once when it differs by more than 12 % (an attack-speed change, a
+ * new target), else averaged with the estimate (jitter); a longer one is a pause (stunned, no target in range, a skill
+ * clip) and no interval at all, unless the gap before was the same (two similar long gaps in a row: a slower rhythm).
+ * The swing speed is clip / interval (spine.js attackTimeScale): a pause counted in (the old 0.6 / 0.4 average of every
+ * gap under 6 s) played a loop attack such as Texas' at half speed after it, its strikes off the attacks.
+ */
+export function nextInterval(iv, d, prevGap = null) {
+  if (!(d > 0.05)) return iv;
+  if (d <= 1.5 * iv) return Math.abs(d - iv) > 0.12 * iv ? d : iv * 0.5 + d * 0.5;
+  if (prevGap != null && d < 6 && Math.abs(d - prevGap) <= 0.2 * d) return d;
+  return iv;
+}
+
 /** World step (x = col, y = row) of a direction. */
 export const DIR_STEP = Object.freeze({ UP: [0, 1], RIGHT: [1, 0], DOWN: [0, -1], LEFT: [-1, 0] });
 const nowMs = () => (globalThis.performance ? globalThis.performance.now() : Date.now());
@@ -219,7 +235,7 @@ export class UnitView {
     this.flash = 0;
     this.bob = Math.random() * Math.PI * 2;
     this.hovered = false; this.dimmed = false; this.lift = 0;
-    this.lastAtk = -1; this.atkInterval = defaultInterval(ctx, info);
+    this.lastAtk = -1; this.atkInterval = defaultInterval(ctx, info); this.prevGap = null;
     this.shake = 0;
     this.screen = { x: 0, y: 0, s: 1, top: 0 };
     this.destroyed = false;
@@ -538,7 +554,8 @@ export class UnitView {
     if (this.lastAtk >= 0 && Math.abs(now - this.lastAtk) < 1e-3) return;
     if (this.lastAtk >= 0) {
       const d = now - this.lastAtk;
-      if (d > 0.05 && d < 6) this.atkInterval = this.atkInterval * 0.6 + d * 0.4;
+      this.atkInterval = nextInterval(this.atkInterval, d, this.prevGap);
+      if (d > 0.05) this.prevGap = d;
     }
     this.lastAtk = now;
     if (target && !this.isEnemy && this.info.kind !== 'device') {
@@ -556,18 +573,19 @@ export class UnitView {
     if (this.imp) this.imp.dirty = true;
   }
 
-  /**
-   * An attack by this unit is `lead` game seconds ahead in the snapshot buffer: start the Spine attack wind-up now
-   * so the strike frame lines up with the attack. True once started (then stop calling for that attack).
-   */
   /** The unit's next attack in the battle look-ahead (game s; Infinity: none) and the look-ahead's reach (app.js). */
   setUpcoming(lead, horizon) {
     if (this.actor) this.actor.setUpcoming(lead, horizon);
   }
 
-  windUp(lead, target = null) {
+  /**
+   * This unit's attack `at` (its event time) is `lead` game seconds ahead in the snapshot buffer: start the Spine attack
+   * wind-up now so the strike frame lines up with it; `target` (view or null) below the unit picks the `_Down` clips.
+   * True once a swing is started for that attack (then stop calling for it); false: ask again next frame.
+   */
+  windUp(lead, target = null, at = null) {
     if (!this.alive || !this.actor || !this.spineReady) return false;
-    const ok = this.actor.windUp(this.atkInterval, lead, targetBelow(this, target));
+    const ok = this.actor.windUp(this.atkInterval, lead, targetBelow(this, target), at);
     if (ok && this.imp) this.imp.dirty = true;
     return ok;
   }
@@ -720,10 +738,13 @@ export class UnitView {
         this.actor.setClipping(clip);
         if (clip && this.ctx.impostors) interval = Math.max(1, interval);
       }
-      // never slower than ~20 skeleton updates a second (render/app.js maxAnimInterval), and every frame while a blend
-      // runs (a clip changed within ~0.3 s real): a blend sampled every few frames is a jump
-      if (interval > 1 && !this.lodIdle && this.ctx.maxAnimInterval) interval = Math.min(interval, this.ctx.maxAnimInterval());
-      if (interval > 1 && !this.lodIdle && this.actor.clock - this.actor.changedAt < 0.3 * rate) interval = 1;
+      // never slower than ~20 skeleton updates a second (render/app.js maxAnimInterval) and at most every 2nd frame while
+      // two clips blend (a blend sampled every few frames is a jump) — unless the device struggles (level 2+: crowds
+      // animate at 5–10 Hz) or is under load (level 1: no blend refresh). Review of the upstream PR (2026-10): an
+      // interval of 1 for every recent clip change (0.3 s) turned most impostors into per-frame redraws, dearer than
+      // drawing the skeletons directly, and cancelled the level-2/3 savings
+      if (interval > 1 && !this.lodIdle && lvl < 2 && this.ctx.maxAnimInterval) interval = Math.min(interval, this.ctx.maxAnimInterval());
+      if (interval > 2 && !this.lodIdle && lvl === 0 && this.actor.blending?.()) interval = 2;
       if (interval > 0 && this.ctx.renderer) {
         this._updateImpostor(sc, flip, tint, animDt, interval);
       } else {

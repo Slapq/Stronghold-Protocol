@@ -6,7 +6,8 @@
 //
 // Driving (units.js calls these; the sim is authoritative, the actor only visualises):
 //   setBase('idle'|'move'|'stun')        the resting state from the snapshot anim code
-//   windUp(interval, lead, down)          an attack is `lead` game s ahead: start its swing so the strike lands on it
+//   windUp(interval, lead, down, at)      the attack `at` (its event time) is `lead` game s ahead: start its swing so
+//                                         the strike lands on it
 //   attack(interval, down)                one attack happened now (b.ev 'atk')
 //   setUpcoming(lead, horizon)            game s to this unit's next attack in the look-ahead (Infinity: none), and
 //                                         how far the look-ahead reaches
@@ -26,8 +27,11 @@
 //   - a one-shot clip (`Attack`) plays once per attack at its natural speed — sped up when the attack interval is
 //     shorter, stretched at most ATTACK_STRETCH when longer (attackTimeScale) — then the operator idles until the next
 //     swing; a begin / loop / end set (Texas: Attack_Start → Attack_Loop → Attack_End) plays its begin clip when the
-//     unit engages, cycles the loop once per attack and, when no attack follows, ends at the cycle's last frame (the
-//     end clip's first: the three are authored as one continuous motion) with the end clip;
+//     unit engages, cycles the loop once per attack at a constant speed (clip / interval: never re-phased or sped up
+//     to catch an attack) and, when no attack follows where its next strike falls, ends at the cycle's last frame
+//     (the end clip's first: the three are authored as one continuous motion) with the end clip;
+//   - a swing returns to the resting state of the moment it ends (an enemy blocked mid-walk idles, a unit whose
+//     blocker died walks on), not the one it was wound up in;
 //   - blends are given in real seconds (MIX: the battle runs at 2×) and never start before the strike frame;
 //   - a target below the operator (more below than beside) takes the `_Down` clips (Attack_Down, Skill_Down_Begin, …);
 //   - a skill's begin clip always plays out (attacks wait), an instant skill (on and off at once) still plays its
@@ -117,7 +121,9 @@ export class SpineActor {
     this.attackUntil = 0;
     this.upcoming = Infinity;     // game s to this unit's next attack in the look-ahead (setUpcoming)
     this.horizon = 0;             // how far ahead the look-ahead reaches (game s)
-    this.lastStrikeAt = -Infinity;
+    this.swingClip = null;        // the one-shot swing under way: its clip (by name — the runtime pools TrackEntries) …
+    this.swingHit = 0;            // … its strike frame (clip s)
+    this.swingAt = null;          // … and the attack it was wound up for (the attack event's time; windUp)
     this.changedAt = 0;           // clock of the last clip change (units.js: impostors refresh every frame after one)
     this.down = false;            // the last target was below: `_Down` clips
     this.clock = 0;
@@ -125,7 +131,7 @@ export class SpineActor {
     this.frozen = false;
     this.dead = false;
     this.interval = 1;
-    // strike frames known for this skeleton (manifest `hits`; two skeletons have none: their clips keep the old rule)
+    // strike frames known for this skeleton (manifest `hits`); a skeleton without any keeps the old rule
     this.hitData = !!entry.hits && Object.keys(entry.hits).length > 0;
     this._play(this._idleName(), true);
     this.changedAt = -Infinity; // the first clip is no change to blend
@@ -224,6 +230,9 @@ export class SpineActor {
   /** Name of the clip on track 0 now (a queued clip may have taken over from the one `_play` started). */
   _nowClip() { return this.spine.state.tracks[0]?.animation?.name || this.current; }
 
+  /** Two clips are blending on the track (units.js: an impostor is refreshed more often then). */
+  blending() { return !!this.spine?.state?.tracks?.[0]?.mixingFrom; }
+
   _baseName() {
     if (this.base === 'move') {
       const mv = this.roles.move;
@@ -254,7 +263,7 @@ export class SpineActor {
     const st = this.spine.state;
     const cur = st.tracks?.[track];
     // a looping clip already on the track (idle, a stance) keeps running: restarting it is a visible pop
-    if (!restart && loop && !start && cur && cur.loop && cur.animation?.name === name && !(st.queue?.length)) {
+    if (!restart && loop && !start && cur && cur.loop && cur.animation?.name === name && !cur.next) {
       cur.timeScale = timeScale;
       this.current = name;
       return true;
@@ -303,6 +312,18 @@ export class SpineActor {
     if (b === this.base && this.mode !== 'stun') return;
     this.base = b;
     if (this.mode === 'base') this._play(this._baseName(), true);
+    else if (this.mode === 'attack') this._requeueBase();
+  }
+
+  /**
+   * The resting state changed under a one-shot swing: the base clip queued behind it at wind-up (a blocked enemy still
+   * walking, a blocker that died meanwhile) is replaced by the current one — not latched until the next change.
+   */
+  _requeueBase() {
+    const st = this.spine.state, cur = st.tracks?.[0];
+    if (!this.swingClip || !cur || cur.loop || cur.animation?.name !== this.swingClip || !cur.next || typeof st.disposeNext !== 'function') return;
+    st.disposeNext(cur);
+    this._queue(this._baseName(), true, 1, this._m(MIX.swingOut), this.swingHit);
   }
 
   _enterStun() {
@@ -323,22 +344,42 @@ export class SpineActor {
     this._play(this._baseName(), true);
   }
 
+  /** Game s until the running loop's next strike frame (its begin clip leading into it counts); null: none under way. */
+  _strikeIn(set, e, now, dur, hit, ts) {
+    const ets = Math.max(0.05, e.timeScale || ts);
+    if (now === set.clip) return (hit - (e.trackTime % dur)) / ets;   // a little negative: the strike frame just passed
+    if (set.begin && now === set.begin) return (this.dur(set.begin) - e.trackTime + hit) / ets;
+    return null;
+  }
+
   /**
    * An attack is due in `lead` game seconds (the renderer sees it ahead in the snapshot buffer): start its swing — the
    * begin clip when the unit engages, then the clip — so the strike frame lands when the attack event is rendered.
-   * Returns true once started (or already swinging towards it); false while it is still too early (call again next
-   * frame) or there is nothing to swing.
+   * `at`: the attack's identity (its event time). Returns true once a swing is started for THIS attack (another target
+   * of the same attack too: the caller may stop asking); false while it is too early, while an earlier attack's swing
+   * runs, while a loop in rhythm will strike it anyway, or when there is nothing to swing (ask again next frame).
    */
-  windUp(interval, lead, down = false) {
+  windUp(interval, lead, down = false, at = null) {
     if (this.dead || !(lead >= 0) || this._busy()) return false;
     const iv = clampN(Number.isFinite(interval) && interval > 0 ? interval : this.interval, 0.08, 8);
     const set = this._attackSet(!!down);
     if (!set) return false;
     const dur = this.dur(set.clip), hit = this._hitTime(set.clip, dur), ts = this._attackTs(set, dur, iv);
     const now = this._nowClip(), e = this.spine.state.tracks[0];
-    // already swinging towards it: a loop in rhythm or its begin clip leading into it, a one-shot before its strike
-    if (set.loop && (now === set.clip || (set.begin && now === set.begin))) return true;
-    if (!set.loop && now === set.clip && e && e.trackTime < hit) return true;
+    if (set.loop && e && this.mode === 'attack') {
+      // a loop whose next strike frame (or the one after) is where this attack is strikes it anyway: no restart. Not
+      // final — the loop may still end at its cycle (update), then this attack is wound up anew
+      const si = this._strikeIn(set, e, now, dur, hit, ts);
+      const tol = Math.max(0.12, 0.3 * iv), period = now === set.clip ? dur / Math.max(0.05, e.timeScale || ts) : Infinity;
+      if (si != null && (Math.abs(si - lead) <= tol || Math.abs(si + period - lead) <= tol)) return false;
+    }
+    if (!set.loop && this.mode === 'attack') {
+      // a one-shot swing is for the attack it was wound up for (by identity: independent of how often the actor is
+      // updated), not for a later one: that one is asked again — reported as swung, it would be left to the strike-frame
+      // fallback in attack(), a hard cut
+      if (at != null && this.swingAt != null && Math.abs(at - this.swingAt) < 1e-3) return true;
+      if (at == null && now === set.clip && e && e.trackTime < hit) return true;
+    }
     const begin = set.begin && this.mode !== 'attack' ? this.dur(set.begin) : 0;
     const plan = windUpPlan(dur, hit, iv, lead, set.loop, begin);
     if (plan.early) return false;
@@ -347,6 +388,7 @@ export class SpineActor {
     this.mode = 'attack';
     this.attackUntil = this.clock + lead + iv + 0.5;
     this._engage(set, ts, plan.start, begin, Math.min(this._m(MIX.swingIn), lead), hit);
+    this.swingAt = at;
     return true;
   }
 
@@ -355,7 +397,6 @@ export class SpineActor {
     if (this.dead) return;
     this.interval = clampN(Number.isFinite(interval) && interval > 0 ? interval : this.interval, 0.08, 8);
     this.down = !!down;
-    this.lastStrikeAt = this.clock;
     if (this._busy()) return;
     const set = this._attackSet();
     if (!set) return;
@@ -363,7 +404,10 @@ export class SpineActor {
     this.mode = 'attack';
     this.attackUntil = this.clock + this.interval + 0.5; // a safety net: the loop ends at its cycle (update)
     const now = this._nowClip(), e = this.spine.state.tracks[0];
-    const swinging = e && ((now === set.clip && (set.loop || e.trackTime <= hit + 0.12 * ts)) || (set.begin && now === set.begin));
+    // a swing under way towards this attack: the set's clip before its strike frame, its loop or begin clip — or the
+    // one-shot wound up before the set changed (a skill without a begin clip began meanwhile: it strikes this attack)
+    const swinging = e && ((now === set.clip && (set.loop || e.trackTime <= hit + 0.12 * ts)) || (set.begin && now === set.begin)
+      || (this.swingClip && now === this.swingClip && !e.loop && e.trackTime <= this.swingHit + 0.12 * Math.max(0.05, e.timeScale || 1)));
     if (swinging) { if (now === set.clip) e.timeScale = ts; return; }
     // no swing under way (a batch that arrived late, or right after a skill clip): the sim already resolved the hit,
     // so the strike frame shows now
@@ -375,6 +419,9 @@ export class SpineActor {
    * then hands over to the base clip after its strike frame.
    */
   _engage(set, ts, start, begin, mix, hit) {
+    this.swingClip = set.loop ? null : set.clip;
+    this.swingHit = hit;
+    this.swingAt = null;
     if (begin > 0 && start < begin) {
       this._play(set.begin, false, { timeScale: ts, start, mix, restart: true });
       this._queue(set.clip, set.loop, ts, 0); // the begin clip's last frame is the loop's first
@@ -419,8 +466,8 @@ export class SpineActor {
     return { begin: this.has(a.begin) ? a.begin : null, clip: a.loop, loop, end: this.has(a.end) ? a.end : null };
   }
 
-  // Skill loops that are pure stances (no OnAttack in the loop) are still valid attack visuals during a skill;
-  // only an idle-typed skill loop is treated as buff-only.
+  // A skill whose loop is just the idle clip shows nothing (no pose, no swing). Pure-stance loops with no strike frame
+  // are held only for skeletons with hit data; hit-less skeletons keep the old rule.
   _skillIsBuffOnly() {
     const sk = this.roles.skill;
     return !!sk && sk.loop === this.roles.idle;
@@ -475,7 +522,7 @@ export class SpineActor {
   }
 
   /**
-   * End an attack loop at the end of its cycle (`left` clip seconds before it): the end clip from its first frame
+   * End an attack loop at the end of its cycle: the end clip from its first frame
    * (= the loop's last), then the base; no end clip: blend to the base (a skill loop that is the base runs on).
    */
   _endLoop(set) {
@@ -525,24 +572,30 @@ export class SpineActor {
         const e = this.spine.state.tracks[0], now = this._nowClip();
         if (set && set.loop && e && now === set.clip) {
           // the original ends the loop when no attack follows — at the end of a cycle (its last frame is the end clip's
-          // first), decided as the cycle wraps: no attack in the look-ahead where the next strike would be
+          // first), decided as the cycle wraps: no attack in the look-ahead where the next strike would be. The loop
+          // plays at its constant speed (clip / interval) and is never re-phased: an attack that is not where the next
+          // strike falls (after a stun, a pause without target, a slower rhythm) ends it, and windUp engages that
+          // attack anew through the begin clip — as the original does after a stun
           const dur = this.dur(set.clip), ts = Math.max(0.05, e.timeScale || 1);
           const t0 = e.trackTime % dur;
           if (t0 + dt * ts >= dur - 1e-6) {
             const nextStrike = (dur - t0 + this._hitTime(set.clip, dur)) / ts;
             const known = nextStrike <= this.horizon;
-            const coming = this.upcoming <= nextStrike + Math.max(0.2, 0.25 * this.interval);
+            const coming = this.upcoming <= this.horizon && Math.abs(this.upcoming - nextStrike) <= Math.max(0.1, 0.12 * this.interval);
             if ((known && !coming) || this.clock > this.attackUntil) this._endLoop(set);
           }
         } else if (set && set.loop && set.begin && now === set.begin) {
           // the begin clip leads into the loop
-        } else if (set && !set.loop && now === set.clip) {
-          // a one-shot swing under way
-        } else if (this.clock > this.attackUntil || (set && !set.loop)) {
-          // a one-shot swing is over (the base clip queued after it plays), or nothing swings any more
+        } else if (this.swingClip && e && !e.loop && now === this.swingClip && this.clock <= this.attackUntil) {
+          // a one-shot swing under way (also when the attack set changed meanwhile: a skill began)
+        } else if (this.clock > this.attackUntil || this.swingClip || (set && !set.loop)) {
+          // the swing is over, or what plays is no attack clip of the current set (a loop left running when a
+          // single-clip skill began): the base clip of NOW, whatever was queued at wind-up
           this.mode = 'base';
+          this.swingClip = null;
+          this.swingAt = null;
           const base = this._baseName();
-          if (now !== base && !(this.spine.state.queue?.length) && !(set && !set.loop)) this._play(base, true, { mix: this._m(MIX.loopOut) });
+          if (now !== base) this._play(base, true, { mix: this._m(MIX.loopOut) });
         }
         break;
       }
