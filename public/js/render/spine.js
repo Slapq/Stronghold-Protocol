@@ -124,7 +124,7 @@ export class SpineActor {
     this.swingClip = null;        // the one-shot swing under way: its clip (by name — the runtime pools TrackEntries) …
     this.swingHit = 0;            // … its strike frame (clip s)
     this.swingAt = null;          // … and the attack it was wound up for (the attack event's time; windUp)
-    this.changedAt = 0;           // clock of the last clip change (units.js: impostors refresh every frame after one)
+    this.lastAtkClock = null;     // clock of the last attack() (update: a loop strike right at the wrap is that attack's)
     this.down = false;            // the last target was below: `_Down` clips
     this.clock = 0;
     this.current = '';
@@ -134,7 +134,6 @@ export class SpineActor {
     // strike frames known for this skeleton (manifest `hits`); a skeleton without any keeps the old rule
     this.hitData = !!entry.hits && Object.keys(entry.hits).length > 0;
     this._play(this._idleName(), true);
-    this.changedAt = -Infinity; // the first clip is no change to blend
   }
 
   /** Enable / disable the skeleton's clipping masks. */
@@ -275,7 +274,6 @@ export class SpineActor {
       if (start) e.trackTime = start;
     }
     this.current = name;
-    this.changedAt = this.clock;
     return true;
   }
 
@@ -367,10 +365,11 @@ export class SpineActor {
     const dur = this.dur(set.clip), hit = this._hitTime(set.clip, dur), ts = this._attackTs(set, dur, iv);
     const now = this._nowClip(), e = this.spine.state.tracks[0];
     if (set.loop && e && this.mode === 'attack') {
-      // a loop whose next strike frame (or the one after) is where this attack is strikes it anyway: no restart. Not
-      // final — the loop may still end at its cycle (update), then this attack is wound up anew
+      // a loop whose next strike frame (or the one after) is where this attack is strikes it anyway: no restart. The
+      // same tolerance as the loop's own wrap test (update): an attack the loop would not keep is wound up anew now, not
+      // left to a wrap that may come after it was shown (a loop whose strike frame is early in its cycle)
       const si = this._strikeIn(set, e, now, dur, hit, ts);
-      const tol = Math.max(0.12, 0.3 * iv), period = now === set.clip ? dur / Math.max(0.05, e.timeScale || ts) : Infinity;
+      const tol = Math.max(0.1, 0.12 * iv), period = now === set.clip ? dur / Math.max(0.05, e.timeScale || ts) : Infinity;
       if (si != null && (Math.abs(si - lead) <= tol || Math.abs(si + period - lead) <= tol)) return false;
     }
     if (!set.loop && this.mode === 'attack') {
@@ -379,6 +378,9 @@ export class SpineActor {
       // fallback in attack(), a hard cut
       if (at != null && this.swingAt != null && Math.abs(at - this.swingAt) < 1e-3) return true;
       if (at == null && now === set.clip && e && e.trackTime < hit) return true;
+      // an earlier attack's swing has not struck yet: restarting the clip would cut its strike (an interval estimate
+      // that is too long opens the wind-up early) — ask again once it struck
+      if (now === this.swingClip && e && !e.loop && e.trackTime < this.swingHit - 1e-6) return false;
     }
     const begin = set.begin && this.mode !== 'attack' ? this.dur(set.begin) : 0;
     const plan = windUpPlan(dur, hit, iv, lead, set.loop, begin);
@@ -397,6 +399,7 @@ export class SpineActor {
     if (this.dead) return;
     this.interval = clampN(Number.isFinite(interval) && interval > 0 ? interval : this.interval, 0.08, 8);
     this.down = !!down;
+    this.lastAtkClock = this.clock;
     if (this._busy()) return;
     const set = this._attackSet();
     if (!set) return;
@@ -581,7 +584,11 @@ export class SpineActor {
           if (t0 + dt * ts >= dur - 1e-6) {
             const nextStrike = (dur - t0 + this._hitTime(set.clip, dur)) / ts;
             const known = nextStrike <= this.horizon;
-            const coming = this.upcoming <= this.horizon && Math.abs(this.upcoming - nextStrike) <= Math.max(0.1, 0.12 * this.interval);
+            // the next attack is where the next strike falls — or that strike is right at the wrap (a strike frame at the
+            // start of the cycle) and belongs to the attack shown just before it
+            const tol = Math.max(0.1, 0.12 * this.interval);
+            const coming = (this.upcoming <= this.horizon && Math.abs(this.upcoming - nextStrike) <= tol)
+              || (this.lastAtkClock != null && nextStrike + Math.max(0, this.clock - dt - this.lastAtkClock) <= tol + dt);
             if ((known && !coming) || this.clock > this.attackUntil) this._endLoop(set);
           }
         } else if (set && set.loop && set.begin && now === set.begin) {

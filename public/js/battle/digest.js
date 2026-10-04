@@ -6,16 +6,18 @@
 // its icon up to the end of the battle, a unit that spawned in the dark stayed a nameless placeholder, and a 影哨
 // recalled in the dark stayed drawn. The digest keeps the little that fixes this, and nothing that would draw a stale
 // one-shot:
-//   * the LAST status change of every (unit, key) — on or off (an off ends what the view holds, an on starts its icon);
+//   * the LAST status change of every (unit, key) — on or off (an off ends what the view holds, an on starts its icon
+//     and, marked 'late', the lasting look of a kind that names that status: expose / wanted / taunt / shields …);
 //   * the END of a skill (its last 'off' of the span): a skill that began meanwhile and still runs is turned on by the
 //     snapshots' SKILL flag (render/units.js) — replaying its start would flash its activation and play its voice long
 //     after it began;
 //   * the spawn of every unit still alive (survivors only, in order; a die / leak drops the unit's spawn);
-//   * the last 影哨 event of every caster ('sentry' placed / 'sentryRecall' taken back: the later one wins).
+//   * the last 影哨 event of every caster ('sentry' placed / 'sentryRecall' taken back: the later one wins), marked
+//     `late`: its record only, not its summon pillar / recall streak.
 // Never atk / dmg / heal / fx one-shots, and never die / leak: they replay at stale positions in one burst, and
 // the snapshots already take a unit that left away (render/app.js syncBattle). Lasting fx STARTS (a wall, a link, drones)
-// are not kept either: a viewer that was not looking misses what began meanwhile (it shows less, never something false);
-// expose / wanted / reveal come back at the sim's next refresh from the unit's statuses (fxsustain.js `status` hint).
+// are not kept either: a viewer that was not looking misses what began meanwhile (it shows less, never something false),
+// except the auras a handed-over status names (above).
 // Fed ONLY with events that nobody saw; delivered frames never touch it.
 
 import { isLastingFxEvent } from '../render/fxsustain.js';
@@ -107,7 +109,13 @@ export class EventDigest {
     for (const r of this.skills.values()) rest.push(r);
     for (const r of this.sentries.values()) rest.push(r);
     rest.sort((a, b) => a.n - b.n);
-    for (const r of rest) out.push(r.e);
+    // marked late: a status that is on makes the lasting look its (unreplayed) fx would have made (render/fxsustain.js
+    // status); a 影哨 event updates its record without its one-shot look (fx.js simFx)
+    for (const { e } of rest) {
+      if (e[0] === 'status' && e[3]) out.push([e[0], e[1], e[2], e[3], 'late']);
+      else if (e[0] === 'fx') out.push([e[0], e[1], e[2], e[3], { ...e[4], late: true }]);
+      else out.push(e);
+    }
     this.reset();
     return out;
   }

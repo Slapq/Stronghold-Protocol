@@ -167,7 +167,8 @@ function assertDigest(got, win, { spawns = true, label = '' } = {}) {
   const want = expectedDigest(win);
   const skillEvents = win.filter((e) => e[0] === 'skill').length;
   assert.ok(want.status.size >= 5 && skillEvents >= 1, `${label}: the window is not trivial (${want.status.size} statuses, ${skillEvents} skill events)`);
-  assert.deepEqual(got.filter((x) => x[0] === 'status').map(key).sort(), [...want.status.values()].map(key).sort(), `${label}: the last status change of every (unit, key)`);
+  assert.deepEqual(got.filter((x) => x[0] === 'status').map((x) => key(x.slice(0, 4))).sort(), [...want.status.values()].map(key).sort(), `${label}: the last status change of every (unit, key)`);
+  assert.ok(got.every((x) => x[0] !== 'status' || (x[3] ? x[4] === 'late' : x.length === 4)), `${label}: a status that is on is handed over marked late`);
   assert.deepEqual(got.filter((x) => x[0] === 'skill').map(key).sort(), [...want.skill.values()].map(key).sort(), `${label}: the last skill end of every unit`);
   assert.ok(got.every((x) => x[0] !== 'skill' || !x[2]), `${label}: no skill start replayed (its activation flash / voice)`);
   assert.deepEqual(got.filter((x) => x[0] === 'spawn').map(key), spawns ? [...want.spawned.values()].map((x) => key([x[0], x[1], 'late'])) : [], `${label}: survivors' spawns, in order${spawns ? '' : ' (none: the meta has the live units)'}`);

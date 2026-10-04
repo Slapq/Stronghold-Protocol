@@ -6,10 +6,11 @@
 // 荒芜拉普兰德's drones were three 'summon' pillars a second. Each such fx now becomes ONE record keyed by kind and unit,
 // drawn until its end signal (FX audit, 2026-10):
 //   'skill'  — the caster's skill ends (['skill', id, 0], also sent on death / retreat), or its snapshot flag drops;
-//   'status' — every status the unit gained (and still has) when the fx went off, or the one status a kind names (`status`
-//              hint: expose / wanted / reveal) — ended by ['status', id, k, 0] once all of them are off. Never inferred
-//              from what else fell into the same batch of events: a render frame holds 1 tick of a local battle, 3+ of a
-//              server one and a whole hidden-tab catch-up, and the same match must show the same auras in all of them;
+//   'status' — the status(es) a kind names (`status` hint: expose, wanted, taunt, shields, 魔王's mote …, measured on
+//              the sim's events) when one is on, else every status the unit gained (and still has) with the fx — ended
+//              by ['status', id, k, 0] once all of them are off. A render frame holds 1 tick of a local battle, 3 of a
+//              server one, up to 8 on a slow device: a hint keeps an unrelated status gained a few ticks earlier in the
+//              same frame from holding the look (an unhinted kind can still over-bind in a long frame);
 //   'time'   — the event's `duration` / `dur` (game s) ran out;
 //   'life'   — the anchor unit dies (or the battle view clears);
 //   'manual' — a later event ends it (影哨: its recall).
@@ -37,7 +38,7 @@ const AURA = (o) => Object.freeze({ look: 'aura', until: 'auto', ...o });
  * bubble, `orbit` sprites circling it, `head` mark above it, `rise` particles (`rate` /s), `ripple` rings every n s,
  * `mid` also when emitted in the middle of the unit's skill (else only at its start), `cap` at most that many game s
  * (a match-long passive — 能天使's talent blessing, 临光's stand — is announced, not looped forever), `status` the one sim
- * status it comes with (bound to it alone, and revived from the unit's current statuses while it is on); 'link': lines between units;
+ * status(es) it comes with (a key or a key prefix: bound to it alone, revived from the unit's current statuses); 'link': lines between units;
  * 'beam': a channelled beam (`dur`); 'drones' / 'motes': virtual drones / orbiting motes; 'sentry': 伊内丝's 影哨;
  * 'tiles': 圣聆初雪's snow; 'vortex': a turning wind (歌蕾蒂娅 S3, 异客 S3); 'enemyAura': an enemy's aura ring.
  */
@@ -50,15 +51,15 @@ export const SUSTAINED = Object.freeze({
   // unit states
   truesilver: AURA({ ring: 'hex', spin: 0.8, glow: 0.28, rise: 'spark', rate: 3 }),
   overclock: AURA({ ring: 'ring', pulse: 1.4, glow: 0.26, rise: 'chevron', rate: 2.5 }),
-  overload: AURA({ ring: 'soft', pulse: 2.6, glow: 0.4, rise: 'spark', rate: 5, mid: true }),
+  overload: AURA({ ring: 'soft', pulse: 2.6, glow: 0.4, rise: 'spark', rate: 5, mid: true, status: ['horn:overload', 'rockr:overload'] }),
   jungleSoul: AURA({ ring: 'soft', glow: 0.24, rise: 'dot', rate: 4 }),
-  devour: AURA({ ring: 'hex', spin: -0.6, glow: 0.34, rise: 'dot', rate: 3 }),
-  shell: AURA({ bubble: 0.22 }),
+  devour: AURA({ ring: 'hex', spin: -0.6, glow: 0.34, rise: 'dot', rate: 3, status: 'billro:s3atk' }),
+  shell: AURA({ bubble: 0.22, status: 'billro:s1guard' }),
   sandChains: AURA({ ring: 'ring', orbit: { n: 3, tex: 'shard', r: 0.5, spd: 1.6, size: 0.2 } }),
   sandChainsCharged: AURA({ ring: 'hex', glow: 0.26, orbit: { n: 4, tex: 'shard', r: 0.55, spd: 2, size: 0.22 } }),
-  bloodBattle: AURA({ ring: 'soft', pulse: 1, glow: 0.3, rise: 'dot', rate: 2 }),
-  ember: AURA({ glow: 0.16, orbit: { n: 3, tex: 'orb', r: 0.42, spd: 2.4, size: 0.2, glow: true } }),
-  mote: AURA({ orbit: { n: 1, tex: 'orb', r: 0.36, spd: 1.8, size: 0.14, glow: true } }),
+  bloodBattle: AURA({ ring: 'soft', pulse: 1, glow: 0.3, rise: 'dot', rate: 2, status: 'horn:bloodBattle' }),
+  ember: AURA({ status: ['ab:ember', 'reed2:fireball'], glow: 0.16, orbit: { n: 3, tex: 'orb', r: 0.42, spd: 2.4, size: 0.2, glow: true } }),
+  mote: AURA({ orbit: { n: 1, tex: 'orb', r: 0.36, spd: 1.8, size: 0.14, glow: true }, status: 'cetsyr:mote' }),
   reweave: AURA({ ring: 'hex', spin: 0.5 }),
   stealth: AURA({ ring: 'soft', rise: 'smoke', rate: 2.5 }),
   camouflage: AURA({ ring: 'soft', rise: 'smoke', rate: 2.5 }),
@@ -67,17 +68,17 @@ export const SUSTAINED = Object.freeze({
   takeoff: AURA({ ring: 'ring', rise: 'streak', rate: 3 }),
   weightless: AURA({ ring: 'ring', rise: 'streak', rate: 3 }),
   slippery: AURA({ ring: 'ring', rise: 'dot', rate: 3 }),
-  taunt: AURA({ ring: 'ring', pulse: 2, head: 'glow' }),
+  taunt: AURA({ ring: 'ring', pulse: 2, head: 'glow', status: 'vendla:taunt' }),
   knack: AURA({ ring: 'soft', rise: 'chevron', rate: 2 }),
   featherArrow: AURA({ glow: 0.2, rise: 'streak', rate: 2.5 }),
   flame: AURA({ glow: 0.3, rise: 'flame', rate: 7 }),
   dilemma: AURA({ ring: 'hex', spin: 1.2, orbit: { n: 2, tex: 'shard', r: 0.45, spd: 2.2, size: 0.2 } }),
   wake: AURA({ ring: 'ring', ripple: 1.2 }),
   sword: AURA({ orbit: { n: 3, tex: 'slash', r: 0.5, spd: 3, size: 0.32 } }),
-  shield: AURA({ bubble: 0.2 }),
-  catShield: AURA({ bubble: 0.2 }),
-  undying: AURA({ bubble: 0.26, glow: 0.2, cap: 10 }),
-  buff: AURA({ rise: 'chevron', rate: 1.6, cap: 20 }),
+  shield: AURA({ bubble: 0.2, status: ['gravel:rats', 'rmixer:shield', 'talent:archet_shield'] }),
+  catShield: AURA({ bubble: 0.2, status: 'cathy:shield' }),
+  undying: AURA({ bubble: 0.26, glow: 0.2, cap: 10, status: 'nearl2:stand' }),
+  buff: AURA({ rise: 'chevron', rate: 1.6, cap: 20, status: 'talent:angel_bless_ally' }),
   bondShare: AURA({ ring: 'soft', ripple: 2 }),
   wanted: AURA({ head: 'reticle', status: 'lemuen:wanted' }),
   expose: AURA({ head: 'reticle', status: 'ab:exposed' }),
@@ -103,8 +104,8 @@ export const ENEMY_AURAS = Object.freeze({
 
 /**
  * Is this b.ev tuple a sim fx that starts / refreshes / ends a lasting record (a SUSTAINED kind, 影哨's recall, an
- * enemy aura, a channelled beam or its end) — state, not a one-shot? Such an event is never dropped as a stale cosmetic
- * one (render/interp.js) and is kept for a field entered mid-battle (screens/game.js); hit sparks and numbers are not.
+ * enemy aura, a channelled beam or its end) — state, not a one-shot? Such an event is kept for a field entered
+ * mid-battle (screens/game.js early buffer, stamped with the entry snapshot); hit sparks and numbers are not.
  */
 export function isLastingFxEvent(e) {
   if (!Array.isArray(e) || e[0] !== 'fx' || typeof e[1] !== 'string') return false;
@@ -113,6 +114,26 @@ export function isLastingFxEvent(e) {
   // the many one-shot beams carry from / to too: only a channel (`dur`) and the end of one (deathEyeEnd) are state
   if (kind === 'beam') return !!ex && ex.from != null && ex.to != null && (num(ex.dur ?? ex.duration, 0) > 0 || ex.kind === 'deathEyeEnd');
   return Object.hasOwn(SUSTAINED, kind) || kind === 'sentryRecall';
+}
+
+/**
+ * Is this b.ev tuple the END of a lasting record (影哨's recall, a channelled beam's end)? It is never dropped as a stale
+ * cosmetic event (render/interp.js): lost, the record it ends would stay drawn. A stale START is dropped like any other
+ * cosmetic one — replayed late it would draw an effect that is already over (a timed record starts from now).
+ */
+export function isLastingFxEnd(e) {
+  if (!Array.isArray(e) || e[0] !== 'fx') return false;
+  if (e[1] === 'sentryRecall') return true;
+  const ex = e[4] && typeof e[4] === 'object' ? e[4] : null;
+  return e[1] === 'beam' && !!ex && ex.kind === 'deathEyeEnd' && ex.from != null && ex.to != null;
+}
+
+/** Whether status `k` is (one of) the status(es) a SUSTAINED spec names: the key itself or a key under it (`key:…`). */
+export function hintMatch(spec, k) {
+  const h = spec && spec.status;
+  if (!h || typeof k !== 'string') return false;
+  for (const x of Array.isArray(h) ? h : [h]) if (k === x || k.startsWith(`${x}:`)) return true;
+  return false;
 }
 
 /** The line of a sustained wall: `axis` 'col' → x = const, 'row' → y = const, 0.5 tile towards `dir` from (x, y). */
@@ -159,13 +180,22 @@ export class Sustains {
     }
   }
 
-  /** ['status', id, key, on]: records bound to that status end once all their statuses are off. */
-  status(view, key, on) {
+  /**
+   * ['status', id, key, on]: records bound to that status end once all their statuses are off. `late`: a status handed
+   * over after a span the view did not see (battle/digest.js) — the fx that came with it is not replayed, so the record
+   * of a kind that names this status is made here (wanted / reveal are announced once only).
+   */
+  status(view, key, on, late = false) {
     if (!view || typeof key !== 'string') return;
     if (on) {
       let set = this.bOn.get(view.id);
       if (!set) this.bOn.set(view.id, (set = new Set()));
       set.add(key);
+      if (late) {
+        for (const [kind, spec] of Object.entries(SUSTAINED)) {
+          if (spec.look === 'aura' && hintMatch(spec, key) && !this.map.get(`${kind}:${view.id}`)) this._aura(kind, spec, { id: view.id });
+        }
+      }
       return;
     }
     for (const S of this.map.values()) {
@@ -246,9 +276,9 @@ export class Sustains {
    * battle, 3+ of a server one, a whole hidden-tab / mid-battle catch-up) — in this order:
    *  1. a running record bound to a status that is still on: this fx only refreshes it ('keep');
    *  2. bound to the statuses `v` gained in this batch that are STILL on (an on / off pair inside one batch binds
-   *     nothing; a kind with a `status` hint binds only to that one); a hinted kind whose status is on right now binds
-   *     to it even when the batch gained nothing (the sim re-announces expose / wanted on every refresh: a record
-   *     lost to a hand-over heals at the next one);
+   *     nothing); a kind with a `status` hint binds only to its own status, gained now or on the unit right now (the
+   *     sim re-announces expose on every refresh: a record lost to a hand-over heals at the next one; a handed-over
+   *     status itself makes the record, see status());
    *  3. the status THIS record was bound to ended in this batch: the fx marks a use (a block consumed) → nothing lasts;
    *  4. its `duration`;
    *  5. its skill — when the skill started in this batch (an onStart effect) or the kind is `mid`;
@@ -260,12 +290,17 @@ export class Sustains {
     const cap = spec.cap > 0 ? spec.cap / this._ts() : Infinity;
     // statuses gained in this batch that are STILL on (an on / off pair inside one batch leaves nothing to bind to)
     let gained = on ? [...on].filter((k) => k !== 'skill' && present(k)) : [];
-    // a kind that names the status it comes with binds to that one only (an unrelated status gained in the same batch must not hold it)
-    if (spec.status && gained.includes(spec.status)) gained = [spec.status];
+    const own = (k) => hintMatch(spec, k);
+    if (spec.status) {
+      // a kind that names the status it comes with binds to that one only — gained now, else on the unit right now (a
+      // record lost to a hand-over or ended early heals at the next fx); an unrelated status gained earlier in the same
+      // batch (several ticks of it) must not hold it
+      const mine = gained.filter(own);
+      const now = mine.length ? mine : v.statuses instanceof Set ? [...v.statuses].filter(own) : [];
+      if (now.length) gained = now;
+    }
     // a running record bound to a status that is still on: this fx only refreshes it, whatever else the batch holds
-    if (cur && !cur.end && cur.until === 'status' && cur.bind && [...cur.bind].some(present)) return { until: 'keep', bind: new Set(spec.status ? gained.filter((k) => k === spec.status) : gained) };
-    // a hinted kind whose status is on right now (a refresh after a hand-over or an ended record): bind to it
-    if (!gained.length && spec.status && v.statuses instanceof Set && v.statuses.has(spec.status)) gained = [spec.status];
+    if (cur && !cur.end && cur.until === 'status' && cur.bind && [...cur.bind].some(present)) return { until: 'keep', bind: new Set(spec.status ? gained.filter(own) : gained) };
     if (gained.length) return { until: 'status', bind: new Set(gained), max: Math.min(cap, MAX_STATUS) };
     // the status this very record was bound to ended in this batch: the fx marks a use (a block consumed) → nothing lasts
     if (cur && cur.end && cur.endBatch === this.batchNo) return { until: 'consumed' };

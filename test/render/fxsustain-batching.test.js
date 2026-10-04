@@ -29,7 +29,7 @@ function rig() {
   const handle = (e) => {
     if (e[0] === 'spawn') views.set(e[1].id, { id: e[1].id, x: e[1].x, y: e[1].y, z: 0, hover: 0, _headTiles: 1.2, alive: true, destroyed: false, statuses: new Set(), info: e[1], dir: e[1].dir, onHit() {} });
     else if (e[0] === 'skill') { const v = views.get(e[1]); if (e[2]) v.statuses.add('skill'); else v.statuses.delete('skill'); fx.skill(v, !!e[2]); }
-    else if (e[0] === 'status') { const v = views.get(e[1]); if (e[3]) v.statuses.add(e[2]); else v.statuses.delete(e[2]); fx.status(v, e[2], !!e[3]); }
+    else if (e[0] === 'status') { const v = views.get(e[1]); if (e[3]) v.statuses.add(e[2]); else v.statuses.delete(e[2]); fx.status(v, e[2], !!e[3], e[4] === 'late'); }
     else if (e[0] === 'fx') fx.simFx(e[1], Number(e[2]), Number(e[3]), e[4]);
   };
   /** one render frame = one batch */
@@ -183,15 +183,67 @@ test('余 fire wall without a held record (his skill is not on / unknown unit): 
   assert.equal(flashes.length, 2);
 });
 
+test('魔王\'s mote in a long frame: bound to its own status, not to one the unit gained a few ticks earlier (review of the review fixes)', () => {
+  // the sim: inspire on at tick 10 (no aura of its own), cetsyr:mote on + fx mote at tick 15 — one frame of 6+ ticks
+  const r = rig();
+  r.frame([OP]);
+  r.frame([['status', 1, 'inspire', 1], ['status', 1, 'cetsyr:mote', 1], ['fx', 'mote', 5, 10, { id: 1 }]]);
+  assert.deepEqual([...r.fx.sustains.get('mote:1').bind], ['cetsyr:mote']);
+  r.frame([['status', 1, 'cetsyr:mote', 0]]);
+  assert.deepEqual(r.alive(), [], 'ends with the mote, while inspire is still on');
+  // the talent's per-caster key is under the same prefix
+  const r2 = rig();
+  r2.frame([OP]);
+  r2.frame([['status', 1, 'inspire', 1], ['status', 1, 'cetsyr:mote:7', 1], ['fx', 'mote', 5, 10, { id: 1 }]]);
+  assert.deepEqual([...r2.fx.sustains.get('mote:1').bind], ['cetsyr:mote:7']);
+  // an unhinted dynamic key still binds as before (no hinted status gained or on)
+  const r3 = rig();
+  r3.frame([OP]);
+  r3.frame([['status', 1, 'kit:taunt:3', 1], ['fx', 'taunt', 5, 10, { id: 1 }]]);
+  assert.deepEqual([...r3.fx.sustains.get('taunt:1').bind], ['kit:taunt:3']);
+});
+
+test('a status handed over after a hidden span (marked late) makes the look its unreplayed fx made: wanted is announced once only', () => {
+  const r = rig();
+  r.frame([OP]);
+  r.frame([['status', 1, 'lemuen:wanted', 1, 'late'], ['status', 1, 'inspire', 1, 'late']]);
+  assert.deepEqual(r.alive(), ['wanted:1(status)']);
+  r.frame([['status', 1, 'lemuen:wanted', 0]]);
+  assert.deepEqual(r.alive(), []);
+  // not late (the sim's own status event, its fx follows or never comes): no record from the status alone
+  const r2 = rig();
+  r2.frame([OP]);
+  r2.frame([['status', 1, 'reveal', 1]]);
+  assert.deepEqual(r2.alive(), []);
+});
+
+test('影哨 handed over late: its record only — no summon pillar, no recall streak', () => {
+  const r = rig();
+  r.frame([OP]);
+  const parts = () => r.fx.counts.particles + r.fx.counts.rings;
+  const p0 = parts();
+  r.frame([['fx', 'sentry', 7, 10, { id: 1, x: 7, y: 10, late: true }]]);
+  assert.deepEqual(r.alive(), ['sentry:1(manual)']);
+  assert.equal(parts(), p0, 'no one-shot look');
+  r.frame([['fx', 'sentryRecall', 7, 10, { id: 1, tx: 5, ty: 10, late: true }]]);
+  assert.deepEqual(r.alive(), []);
+  assert.equal(parts(), p0, 'no recall streak');
+});
+
 test('every status hint of a SUSTAINED kind names a status the sim has (so a rename cannot rot it)', () => {
   const walk = (dir) => readdirSync(dir).flatMap((n) => { const p = join(dir, n); return statSync(p).isDirectory() ? walk(p) : p.endsWith('.js') ? [p] : []; });
   const src = walk('server/sim').map((p) => readFileSync(p, 'utf8')).join('\n');
   const hinted = Object.entries(SUSTAINED).filter(([, s]) => s.status);
-  assert.deepEqual(hinted.map(([k, s]) => `${k}:${s.status}`).sort(), ['expose:ab:exposed', 'reveal:reveal', 'wanted:lemuen:wanted'], 'the hinted kinds (add a new one to this list on purpose)');
+  const list = hinted.flatMap(([k, s]) => (Array.isArray(s.status) ? s.status : [s.status]).map((h) => `${k}:${h}`)).sort();
+  assert.deepEqual(list, ['bloodBattle:horn:bloodBattle', 'buff:talent:angel_bless_ally', 'catShield:cathy:shield', 'devour:billro:s3atk', 'ember:ab:ember', 'ember:reed2:fireball',
+    'expose:ab:exposed', 'mote:cetsyr:mote', 'overload:horn:overload', 'overload:rockr:overload', 'reveal:reveal', 'shell:billro:s1guard', 'shield:gravel:rats', 'shield:rmixer:shield',
+    'shield:talent:archet_shield', 'taunt:vendla:taunt', 'undying:nearl2:stand', 'wanted:lemuen:wanted'], 'the hinted kinds (add a new one to this list on purpose)');
   for (const [kind, spec] of hinted) {
-    // the status exists: a catalogue STATUS (applyStatus) or a buff key the sim adds (addBuff { key })
-    const known = Object.hasOwn(STATUS, spec.status) || src.includes(`key: '${spec.status}'`);
-    assert.ok(known, `${kind}: status '${spec.status}' is in server/sim (buffs.js STATUS or an addBuff key)`);
+    for (const h of Array.isArray(spec.status) ? spec.status : [spec.status]) {
+      // the status exists: a catalogue STATUS (applyStatus), a buff key the sim adds, or a key prefix (`h:…`)
+      const known = Object.hasOwn(STATUS, h) || src.includes(`'${h}'`) || src.includes(`\`${h}:`);
+      assert.ok(known, `${kind}: status '${h}' is in server/sim (buffs.js STATUS, a buff key or a key prefix)`);
+    }
     // ... and the sim emits the fx of that kind
     assert.ok(new RegExp(`fx\\(\\s*'${kind}'`).test(src), `${kind}: the sim emits fx '${kind}'`);
   }

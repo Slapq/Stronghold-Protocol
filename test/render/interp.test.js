@@ -214,16 +214,18 @@ describe('SnapshotBuffer', () => {
     assert.deepEqual(b.flushEvents().map((e) => e[0]), ['leak']);
   });
 
-  test('a lasting fx (a wall, a taunt, 影哨 …) is state: never dropped as stale cosmetic, while hit sparks / numbers still are', () => {
-    const lasting = [['fx', 'firewall', 5, 10, { id: 1, axis: 'col' }], ['fx', 'taunt', 6, 10, { id: 2 }], ['fx', 'sentryRecall', 4, 10, { id: 3 }], ['fx', 'beam', 1, 1, { from: 4, to: 5, kind: 'deathEye', dur: 6 }]];
+  test('the end of a lasting fx (影哨 recalled, a channel ended) is never dropped as stale; a stale lasting START is, like a hit spark', () => {
+    // review of the review fixes: a timed start replayed long after (a hidden server-run tab, a long stall) drew an
+    // effect that had ended — it starts from now. Lost, an END would leave its record drawn for good
+    const ends = [['fx', 'sentryRecall', 4, 10, { id: 3 }], ['fx', 'beam', 1, 1, { from: 4, to: 5, kind: 'deathEyeEnd' }]];
+    const starts = [['fx', 'firewall', 5, 10, { id: 1, axis: 'col' }], ['fx', 'taunt', 6, 10, { id: 2 }], ['fx', 'tornado', 6, 10, { id: 2, duration: 8 }], ['fx', 'beam', 1, 1, { from: 4, to: 5, kind: 'deathEye', dur: 6 }]];
     const oneShots = [['fx', 'burst', 1, 1, {}], ['fx', 'beam', 1, 1, { from: 4, to: 5, kind: 'enemyShot' }], ['fx', 'telegraph', 1, 1, { kind: 'boom' }], ['dmg', 1, 5, 'phys'], ['heal', 1, 3], ['atk', 1, 2, 'none']];
-    for (const e of lasting) assert.ok(!isCosmeticEvent(e), `${e[1]} is not cosmetic`);
-    for (const e of oneShots) assert.ok(isCosmeticEvent(e), `${e[0]}:${e[1]} still is`);
-    // a field entered mid-battle replays a stale history: the lasting starts survive the drop, the one-shots do not
+    for (const e of ends) assert.ok(!isCosmeticEvent(e), `${e[1]} ${e[4].kind || ''} is not cosmetic`);
+    for (const e of [...starts, ...oneShots]) assert.ok(isCosmeticEvent(e), `${e[0]}:${e[1]} is`);
     const b = new SnapshotBuffer({ delay: 0.5, rate: 2 });
-    b.pushEvents([['spawn', { id: 1 }], ['status', 1, 'ab:exposed', 1], ...lasting, ...oneShots], 0, 1);
-    const out = b.takeEvents(10, [], 5);
-    assert.deepEqual(out.map((e) => e[0] + (e[0] === 'fx' ? `:${e[1]}` : '')), ['spawn', 'status', 'fx:firewall', 'fx:taunt', 'fx:sentryRecall', 'fx:beam']);
+    b.pushEvents([['spawn', { id: 1 }], ['status', 1, 'ab:exposed', 1], ...starts, ...ends, ...oneShots], 0, 1);
+    const out = b.takeEvents(60, [], 58.5);
+    assert.deepEqual(out.map((e) => e[0] + (e[0] === 'fx' ? `:${e[1]}` : '')), ['spawn', 'status', 'fx:sentryRecall', 'fx:beam']);
   });
 
   test('a field entered mid-battle: the early buffer stamped with the snapshot\'s game time is delivered by the render clock, lasting fx included', () => {

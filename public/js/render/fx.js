@@ -1691,6 +1691,9 @@ export class FxSystem {
     const spec = fxSpec(kind, ex);
     // a lasting effect (render/fxsustain.js) is registered / refreshed / ended; a pure state sample draws nothing more
     if (this.sus && this.sus.fromFx(kind, Number(x), Number(y), ex, spec.c)) return;
+    // handed over after a span nobody saw (battle/digest.js: 影哨 placed / recalled meanwhile): the state only, no
+    // stale one-shot look (its summon pillar, its recall streak)
+    if (ex.late) return;
     if (spec.a === 'none') return; // an event the screen does not show (hitCap)
     const at = spec.pt ? this._point(Number(x), Number(y)) : this._where(Number(x), Number(y), ex);
     if (!Number.isFinite(at.x) || !Number.isFinite(at.y)) return;
@@ -2314,7 +2317,7 @@ export class FxSystem {
   }
 
   /** ['status', id, key, on] (render/app.js): lasting effects bound to a status end with it. */
-  status(view, key, on) { this.sus.status(view, key, !!on); }
+  status(view, key, on, late = false) { this.sus.status(view, key, !!on, !!late); }
 
   get counts() {
     return { particles: this.parts.length, projectiles: this.projs.length, numbers: this.nums.length, rings: this.rings.length, auras: this.auras.size, locks: this.locks.length, flames: this.flames.length, sustains: this.sus.size, promotions: this.promotions || 0 };

@@ -318,6 +318,16 @@ describe('fast attackers (review of the upstream PR, point 4)', () => {
     assert.deepEqual(starts.map((x) => x.name), []);
   });
 
+  test('an interval estimate that is too long (two long gaps, then a burst) never cuts an earlier swing before its strike', () => {
+    // 古米-like late strike frame: Attack 1.533 s, OnAttack at 0.733 — the estimate (2.7 s after two ~2.8 s gaps) opens the
+    // next wind-up before the previous swing struck
+    const a = actor(MANIFEST.chars.char_4207_branch.spine.back);
+    const times = [2.0, 4.9, 7.6, 8.43, 9.26, 10.09, 10.92];
+    const { starts, strikes } = drive(a, times, { iv0: 0.83, until: 13 });
+    assert.deepEqual(strikesPerAttack(times, strikes, 0.1), times.map(() => 1), `strikes ${strikes.map((x) => x.t.toFixed(2))}`);
+    for (const x of starts.filter((y) => y.name === 'Attack')) assert.ok(x.at < 0.733 - 1e-3, `no swing entered at its strike frame: ${x.t.toFixed(2)}@${x.at.toFixed(2)}`);
+  });
+
   test('with the skeleton updated only every 3rd frame (impostor LOD), still one swing and one strike per attack', () => {
     for (const iv of [0.6, 1.0]) {
       for (const look of [1.0, 2.0]) {
@@ -364,6 +374,33 @@ describe('loop attacks keep the original constant speed (review of the upstream 
       assert.ok(Math.abs(a.interval - iv) < 1e-9, `the pause is no interval: ${a.interval}`);
     });
   }
+
+  // a loop whose strike frame is at (or just after) the start of its cycle: the strike right at the wrap belongs to the
+  // attack shown just before it, not to the next one (review of the review fixes: such loops ended at their own strike)
+  for (const [id, name] of [['char_4194_rmixer', 'rmixer'], ['char_498_inside', 'inside'], ['char_4211_snhunt', 'snhunt']]) {
+    test(`${name} (strike frame at the start of its loop): engaged once, every strike on its attack — also with the LOD and the interval estimate`, () => {
+      const entry = MANIFEST.chars[id].spine.front;
+      for (const iv of [1.0, 1.3]) {
+        for (const every of [1, 3]) {
+          const a = actor(entry);
+          const times = Array.from({ length: 16 }, (_, i) => 2 + i * iv);
+          const { starts, strikes } = drive(a, times, { iv0: iv, every, until: times.at(-1) + 3 });
+          const label = `${name} iv ${iv} every ${every}`;
+          assert.equal(starts.filter((x) => x.name === 'Attack_Begin').length, 1, `${label}: engaged once (${starts.map((x) => x.name)})`);
+          assert.equal(starts.filter((x) => x.name === 'Attack_End').length, 1, `${label}: ended once`);
+          assert.deepEqual(strikesPerAttack(times, strikes, every === 1 ? 0.1 : 0.17), times.map(() => 1), `${label}: strikes ${strikes.map((x) => x.t.toFixed(2))}`);
+        }
+      }
+    });
+  }
+
+  test('snhunt: a rhythm change of 15 % (an attack-speed skill) keeps every strike on its attack', () => {
+    const a = actor(MANIFEST.chars.char_4211_snhunt.spine.front);
+    const first = Array.from({ length: 6 }, (_, i) => 2 + i * 1.2);
+    const times = [...first, ...Array.from({ length: 6 }, (_, i) => first.at(-1) + 1.02 * (i + 1))];
+    const { strikes } = drive(a, times, { iv0: 1.2, until: times.at(-1) + 3 });
+    assert.deepEqual(strikesPerAttack(times, strikes, 0.1), times.map(() => 1), `strikes ${strikes.map((x) => x.t.toFixed(2))}`);
+  });
 
   test('德克萨斯 stunned mid loop: engaged again after the stun, strikes on the attacks', () => {
     const a = actor(TEXAS);

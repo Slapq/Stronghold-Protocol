@@ -151,6 +151,27 @@ describe('knocked-out operators and element gauges in headless Chrome', { skip }
       await page.evaluate(() => window.__demo.view.setPaused(false));
       await settled(page);
       assert.ok((await clocks()).renderT > frozen.renderT + 0.5, 'resumed: the frames held meanwhile play');
+      // review of the review fixes: (a) a field entered while the picture is paused (a replay round picked while paused)
+      // shows its units at once — a fade-in needs the frozen clock; (b) the hand-over events of a field entered
+      // mid-battle come before the first frame builds the views: a unit the field meta announced still takes them
+      const enter = (fieldId, paused, ev) => page.evaluate((fieldId, paused, ev) => {
+        const v = window.__demo.view;
+        v.setPaused(paused);
+        const u = { id: 21, kind: 'op', side: 'ally', defId: 'char_102_texas', spine: 'char_102_texas', avatar: 'char_102_texas', x: 5, y: 10, maxHp: 1000, facing: 1, dir: 'RIGHT', tier: 3 };
+        v.enterBattle({ fieldId, kind: 'normal', rect: { r0: 9, r1: 12, c0: 0, c1: 10 }, stageId: 'act2autochess_m01', units: [u] });
+        if (ev) v.pushEvents({ t: 'b.ev', fieldId, gt: 40, ev });
+        for (const gt of [40, 40 + 1 / 30]) v.pushSnapshot({ t: 'b.snap', fieldId, gt, units: [[21, 5, 10, 1000, 1000, 0, 0, 0, 0]], dp: 5, killed: 0, total: 1 });
+      }, fieldId, paused, ev);
+      const unit21 = () => page.evaluate(() => { const v = window.__demo.view, x = v.debug.views.get(21); return x ? { fadeIn: x.fadeIn, statuses: [...x.statuses], wanted: v.debug.fx.sustains.has('wanted:21') } : null; });
+      await enter('dn2', true, null);
+      await page.waitForFunction(() => !!window.__demo.view.debug.views.get(21)?._seen, { polling: 'raf', timeout: 10000 });
+      assert.equal((await unit21()).fadeIn, 1, 'entered while paused: shown at once');
+      await enter('dn3', false, [['status', 21, 'lemuen:wanted', 1, 'late']]);
+      await settled(page);
+      await page.waitForFunction(() => window.__demo.view.debug.interp.renderT >= 40, { polling: 'raf', timeout: 10000 });
+      const u21 = await unit21();
+      assert.deepEqual(u21.statuses, ['lemuen:wanted'], 'the handed-over status reached the unit announced by the meta');
+      assert.equal(u21.wanted, true, 'and made its lasting look');
       assert.deepEqual(problems, []);
     } finally {
       await page.close();

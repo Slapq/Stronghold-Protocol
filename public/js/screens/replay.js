@@ -37,7 +37,7 @@ export function ReplayScreen() {
     raf=requestAnimationFrame(frame);
     return()=>{cancelAnimationFrame(raf);r.dispose();runner.current=null;};
   },[view,loaded]);
-  useEffect(()=>{const battle=loaded?.replay.battles[selected];if(battle?.complete)runner.current?.select(battle);},[selected,loaded,view]);
+  useEffect(()=>{const battle=loaded?.replay.battles[selected];if(battle?.complete){view?.raw?.setPaused?.(false);runner.current?.select(battle);}},[selected,loaded,view]);
   const battle=loaded?.replay.battles[selected];
   return html`<div class="screen replay-screen">
     <header class="topbar"><div class="topbar__left"><${Button} variant="ghost" icon="chevronLeft" onClick=${()=>store.patch('ui',{accountPage:'history'})}>返回记录<//></div>
@@ -50,7 +50,7 @@ export function ReplayScreen() {
     <div ref=${host} class="replay-field" style=${battle?.complete?'':'visibility:hidden'}></div>
     <div class="replay-toolbar">
       <${Button} disabled=${!battle?.complete} onClick=${()=>{const r=runner.current;view?.raw?.setPaused?.(!!state.playing);state.playing?r?.pause():r?.play();}}>${state.playing?'暂停':'播放'}<//>
-      <${Button} variant="ghost" disabled=${!battle?.complete} onClick=${()=>runner.current?.select(battle)}>从头播放<//>
+      <${Button} variant="ghost" disabled=${!battle?.complete} onClick=${()=>{view?.raw?.setPaused?.(false);runner.current?.select(battle);}}>从头播放<//>
       ${[0.5,1,2,4].map(speed=>html`<${Button} size="sm" variant=${state.speed===speed?'primary':'ghost'} onClick=${()=>{runner.current?.setSpeed(speed);view?.raw?.setLocalFeed?.({on:true,speed});}}>${speed}×<//>`)}
       <span class="num">${Math.floor(state.seconds || 0)} / ${Math.ceil(state.duration || 0)} 秒</span>
     </div></main></div>`;

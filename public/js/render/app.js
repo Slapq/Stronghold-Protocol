@@ -507,7 +507,9 @@ export async function createFieldView(host, options = {}) {
     loadLevel: () => loadLevel,
     fieldRect: () => (mode === 'battle' && battleMeta ? battleMeta.rect : null),
     subProfOf: (defId) => data.chess(defId)?.subProfessionId || null,
-    view: (id) => views.get(id) || null,
+    // a unit the field meta announced but no frame has drawn yet (a field entered mid-battle: its hand-over events come
+    // before the first snapshot builds the views) gets its view now, so its statuses / lasting fx are not lost
+    view: (id) => views.get(id) || battleView(id),
     screenSize: size,
     fieldTop: () => {
       const R = camRect();
@@ -1431,7 +1433,7 @@ export async function createFieldView(host, options = {}) {
         break;
       }
       case 'heal': { const v = views.get(e[1]); if (v) fx.heal(v, Number(e[2]) || 0); break; }
-      case 'skill': { const v = views.get(e[1]); if (v) { v.setSkill?.(!!e[2]); fx.skill(v, !!e[2]); } break; }
+      case 'skill': { const v = views.get(e[1]) || battleView(e[1]); if (v) { v.setSkill?.(!!e[2]); fx.skill(v, !!e[2]); } break; }
       case 'die': {
         const v = views.get(e[1]);
         const used = consumedIds.delete(e[1]);
@@ -1448,7 +1450,7 @@ export async function createFieldView(host, options = {}) {
         fx.leak();
         break;
       }
-      case 'status': { const v = views.get(e[1]); if (v) { v.onStatus?.(e[2], !!e[3]); fx.status(v, e[2], !!e[3]); } break; }
+      case 'status': { const v = views.get(e[1]) || battleView(e[1]); if (v) { v.onStatus?.(e[2], !!e[3]); fx.status(v, e[2], !!e[3], e[4] === 'late'); } break; }
       case 'fx':
         if (e[4] && typeof e[4] === 'object' && e[4].consumed && e[4].id != null) {
           consumedIds.add(e[4].id);
@@ -1510,7 +1512,8 @@ export async function createFieldView(host, options = {}) {
       }
       if (!v) v = battleView(id) || createUnknown(id, s);
       if (!v) continue;
-      if (!v._seen) { v._seen = true; v.fadeIn = 0; }
+      // (first drawn while the battle picture is paused: shown at once — a fade needs the frozen clock)
+      if (!v._seen) { v._seen = true; v.fadeIn = battlePaused ? 1 : 0; }
       if (v.alive || v.info?.kind === 'device') v.sync(s, renderT);
       else if (v.dying > 0) { v.x = s.x; v.y = s.y; }
       else if (s.anim !== ANIM.DIE && s.hp > 0) { v.revive?.(); v.sync(s, renderT); }
