@@ -345,9 +345,11 @@ export class AudioManager {
     this.voiceToken = 0;      // newest requested line (a slower buffer load never plays over a newer line)
     this.voiceLast = new Map(); // cooldown key (cooldownKey) → when its last line started
     this.squadLeader = null;  // charId of the latest battle's squad leader (行动开始, the end line)
+    this.encounterTimer = null;
+    this.battleToken = 0;
+    this.matchEnded = false;
     this.encounter = null;    // { at } a battle started: 行动开始 is due at its first enemy
-    this.encounterTimer = null; // the pending 行动开始 (cancelled by the next battle and by the match end)
-    this.battleKey = null;    // the battle battleStart armed (a re-mounted battle screen does not re-arm it)
+    this.battleKey = null;
     this.holdSkillsUntil = 0; // no 作战中 before the battle's 行动开始 (performance.now ms; a safety bound)
     this.voiceLog = [];       // the lines started: { role, charId, type } (latest 200; the browser E2E reads it)
     this.buffers = new Map(); // url → Promise<AudioBuffer|null> (insertion order = LRU)
@@ -463,7 +465,7 @@ export class AudioManager {
       if (!this.ctx) return;
       // hidden: the voice line stops (its wall-clock safety timer would otherwise free the voice slot while the
       // suspended line waits to resume, and a later line would play over it)
-      if (this.win?.document?.hidden) { this.stopVoice(0); this.ctx.suspend().catch(() => {}); }
+      if (this.win?.document?.hidden) { this.battleEnd(); this.stopVoice(0); this.ctx.suspend().catch(() => {}); }
       else if (this.ctx.state !== 'running') {
         // back on the page: resume, and keep a gesture ready in case the browser wants one first (iOS after a call)
         this._armUnlock();
@@ -698,7 +700,7 @@ export class AudioManager {
       const v = this.volumes;
       if (!this.ctx || v.muted || v.voice <= 0 || v.voiceLang === 'off' || typeof charId !== 'string') return false;
       // hidden page (suspended context): a line started now would pile up with the paused one on return
-      if (this.ctx.state && this.ctx.state !== 'running') return false;
+      if (this.win?.document?.hidden || this.ctx.state && this.ctx.state !== 'running') return false;
       const m = this.getManifest();
       // a saved language this site lacks (voice downloaded with --voice=jp only): the first one it has
       const lang = m?.audio?.voice?.[v.voiceLang] ? v.voiceLang : voiceLangsIn(m)[0]?.[0];
@@ -708,16 +710,9 @@ export class AudioManager {
       const opt = rules.types[type] ?? { priority: 0, overlap: true, cooldown: 0 };
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
       const key = cooldownKey(type);
-      const last = this.voiceLast.get(key);
       const cur = this.voiceWant ?? this.voiceNow;
-      if (SKILL_TYPES.has(type) && cur && SKILL_TYPES.has(cur.type)) return false; // one 作战中 never cuts another
-      if (!voiceMayStart(opt, cur, last, now)) return false;
-      this.voiceLast.set(key, now);
-      // a line that never loads does not start its type's cooldown
-      const unload = () => {
-        if (this.voiceLast.get(key) !== now) return;
-        if (last === undefined) this.voiceLast.delete(key); else this.voiceLast.set(key, last);
-      };
+      if (SKILL_TYPES.has(type) && cur && SKILL_TYPES.has(cur.type)) return false;
+      if (!voiceMayStart(opt, cur, this.voiceLast.get(key), now)) return false;
       this.voiceLog.push({ role, charId, type });
       if (this.voiceLog.length > 200) this.voiceLog.shift();
       const token = ++this.voiceToken;
@@ -725,10 +720,11 @@ export class AudioManager {
       const loaded = () => { if (this.voiceWant?.token === token) this.voiceWant = null; };
       this._buffer(url).then((buf) => {
         loaded();
-        if (!buf || !this.ctx) { unload(); return; }
-        if (token !== this.voiceToken) return;
-        this._startVoice(buf, opt.priority, rules.crossfade, type);
-      }, () => { loaded(); unload(); });
+        if (!buf || !this.ctx || token !== this.voiceToken || this.win?.document?.hidden || this.ctx.state !== 'running') return;
+        if (this._startVoice(buf, opt.priority, rules.crossfade, type)) {
+          this.voiceLast.set(key, typeof performance !== 'undefined' ? performance.now() : Date.now());
+        }
+      }, loaded);
       return true;
     } catch { return false; }
   }
@@ -757,7 +753,8 @@ export class AudioManager {
       setTimeout(end, buf.duration * 1000 + 250); // safety if onended never fires
       this.voiceNow = cur;
       src.start();
-    } catch { /* ignore */ }
+      return true;
+    } catch { this.voiceNow = null; return false; }
   }
 
   /** Fade out and stop the voice line that is playing. @param {number} [fade] seconds */
@@ -784,12 +781,24 @@ export class AudioManager {
    */
   battleStart(leader, key = null) {
     if (key != null && key === this.battleKey) return;
+    this.battleEnd();
     this.battleKey = key;
+    this.matchEnded = false;
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    this._cancelEncounter();
     this.squadLeader = typeof leader === 'string' ? leader : null;
     this.encounter = this.squadLeader ? { at: now } : null;
     this.holdSkillsUntil = this.squadLeader ? now + HOLD_SKILLS_MS : 0;
+  }
+
+  /** Cancel delayed or loading battle voices when the field ends or its screen unmounts. */
+  battleEnd() {
+    clearTimeout(this.encounterTimer);
+    this.encounterTimer = null;
+    this.battleToken++;
+    this.encounter = null;
+    this.holdSkillsUntil = 0;
+    this.voiceToken++;
+    this.voiceWant = null;
   }
 
   /** The battle's first enemy appeared: the leader's 行动开始, not before minTimeDeltaForEnemyEncounter. */
@@ -799,8 +808,10 @@ export class AudioManager {
     this.encounter = null;
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const wait = Math.max(0, e.at + voiceRulesOf(this.getManifest()).encounterDelay * 1000 - now);
+    const token = this.battleToken;
     const leader = this.squadLeader;
     const say = () => {
+      if (token !== this.battleToken) return;
       this.encounterTimer = null;
       this.holdSkillsUntil = 0;
       if (leader) this.voice(leader, 'start');
@@ -808,16 +819,10 @@ export class AudioManager {
     if (wait > 0) this.encounterTimer = setTimeout(say, wait); else say();
   }
 
-  /** Between battles (a non-combat phase): the next battleStart arms a new battle whatever its key. */
+  /** Reset battle identity only when combat actually ends, not when its screen remounts. */
   battleOver() {
+    this.battleEnd();
     this.battleKey = null;
-  }
-
-  /** Drop the battle's 行动开始 that is not said yet. */
-  _cancelEncounter() {
-    this.encounter = null;
-    if (this.encounterTimer) clearTimeout(this.encounterTimer);
-    this.encounterTimer = null;
   }
 
   /**
@@ -825,12 +830,9 @@ export class AudioManager {
    * @param {{ victory: boolean, lpLost?: number }} r own LP lost over the match (result stats.lpLost)
    */
   matchEnd(r) {
-    this._cancelEncounter();
-    this.battleKey = null;
-    this.holdSkillsUntil = 0;
-    const leader = this.squadLeader;
-    this.squadLeader = null; // once per match: a re-shown result screen says nothing
-    if (leader) this.voice(leader, endVoiceRole(r));
+    if (this.matchEnded) return;
+    this.battleOver();
+    if (this.squadLeader && this.voice(this.squadLeader, endVoiceRole(r))) this.matchEnded = true;
   }
 
   // ---- battle events ------------------------------------------------------------------------------------------

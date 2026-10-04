@@ -14,7 +14,9 @@
   // Durable Object namespace), so a Preview builds and uploads but has no rooms; production uses `wrangler deploy`.
   "previews": {},
   "routes": [{ "pattern": "xn--rlr.rinko.ai", "custom_domain": true }],
-  "build": { "command": "npm run build:worker" },
+  // The build first copies the local-client art (3D board, autochess UI sprites, …) from 晴猫's site, which extracted it
+  // from a game client; Workers Builds has none (tools/fetch-local-art.mjs; if it fails, the 2D board is used).
+  "build": { "command": "node tools/fetch-local-art.mjs --from=https://stronghold.lunar.ag && npm run build:worker" },
   "assets": {
     "directory": "./dist/client",
     "binding": "ASSETS",

@@ -10,6 +10,8 @@ public/fonts/
 # tools/local-extract/extract.py → public/assets/local/** and this per-machine manifest
 # (optional: the client and the tests work without it)
 data/local-assets.json
+# tools/fetch-local-art.mjs: the same art copied from a site that extracted it (this fork's Cloudflare build)
+public/data/local-assets.json
 # download caches, upstream tables, ledgers, reports, setup state
 .cache/
 # the resource ZIP for friends (scripts/make-resource-pack.*, npm run resources:zip): game assets, never committed
@@ -45,4 +47,5 @@ dist/
 .wrangler/
 .dev.vars
 .dev.vars.*
+.replay-engines/
 public/resource-manifest.json
