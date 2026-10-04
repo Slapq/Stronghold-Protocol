@@ -15,7 +15,7 @@ import { makeBattle } from '../helpers/battleHarness.js';
 const spawn = (id, side = 'enemy') => ['spawn', { id, side, kind: side === 'enemy' ? 'enemy' : 'op', x: id, y: 10 }];
 const names = (evs) => evs.map((e) => (e[0] === 'fx' ? `fx:${e[1]}:${e[4].id}` : e[0] === 'spawn' ? `spawn:${e[1].id}` : e.slice(0, e[0] === 'status' ? 4 : 3).join(':')));
 
-test('digest: the last status change of every (unit, key), on or off; the last skill event of every unit', () => {
+test('digest: the last status change of every (unit, key), on or off; the end of a skill, never its start', () => {
   const d = new EventDigest();
   d.feed([['status', 1, 'a', 1], ['atk', 1, 2, 'none'], ['dmg', 2, 10, 'phys'], ['status', 1, 'a', 0], ['status', 1, 'b', 1], ['skill', 1, 1]]);
   d.feed([['status', 1, 'a', 1], ['skill', 1, 0], ['status', 2, 'a', 0], ['heal', 1, 3], ['fx', 'burst', 3, 3, { id: 1 }]]);
@@ -23,6 +23,12 @@ test('digest: the last status change of every (unit, key), on or off; the last s
   assert.deepEqual(names(d.take()), ['status:1:b:1', 'status:1:a:1', 'skill:1:0', 'status:2:a:0'], 'in the order the sim sent them; nothing else');
   assert.equal(d.size, 0, 'take() empties it');
   assert.deepEqual(d.take(), []);
+});
+
+test('digest: a skill that began in the dark is not replayed (no stale activation flash / voice); one that ended is, even if it began again', () => {
+  const d = new EventDigest();
+  d.feed([['skill', 1, 1], ['skill', 2, 1], ['skill', 2, 0], ['skill', 3, 0], ['skill', 3, 1]]);
+  assert.deepEqual(names(d.take()), ['skill:2:0', 'skill:3:0'], 'unit 1: only a start (the SKILL flag turns it on); unit 3: its end, then the flag');
 });
 
 test('digest: survivors only — a die / leak drops the unit\'s spawn (never replayed itself); its last status / skill stay (a knocked-out operator\'s view outlives it)', () => {
@@ -38,7 +44,7 @@ test('digest: spawns come first in spawn order (a re-spawn takes its new place);
   const d = new EventDigest();
   d.feed([spawn(1), ['status', 1, 'x', 1], spawn(2), spawn(1), ['skill', 2, 1]]);
   const out = d.take();
-  assert.deepEqual(names(out), ['spawn:2', 'spawn:1', 'status:1:x:1', 'skill:2:1']);
+  assert.deepEqual(names(out), ['spawn:2', 'spawn:1', 'status:1:x:1'], 'a skill start is not kept');
   assert.deepEqual(out.filter((e) => e[0] === 'spawn').map((e) => e[2]), ['late', 'late'], 'marked late: no spawn ring at the gate for a unit that came in while nobody looked');
   d.feed([spawn(1), ['status', 1, 'x', 1], spawn(2)]);
   assert.deepEqual(names(d.take({ spawns: false })), ['status:1:x:1']);
@@ -142,7 +148,7 @@ function expectedDigest(win) {
   const status = new Map(), skill = new Map(), spawned = new Map();
   for (const e of win) {
     if (e[0] === 'status') status.set(`${e[1]}|${e[2]}`, e);
-    else if (e[0] === 'skill') skill.set(e[1], e);
+    else if (e[0] === 'skill' && !e[2]) skill.set(e[1], e);   // only an end (a start comes back with the SKILL flag)
     else if (e[0] === 'spawn') spawned.set(e[1].id, e);
     else if (e[0] === 'die' || e[0] === 'leak') {
       spawned.delete(e[1]);
@@ -159,9 +165,11 @@ const tickOf = (gt) => Math.round(gt * 30);
 /** `got` (the digest part of a batch) must be exactly the naive replay of `win`. */
 function assertDigest(got, win, { spawns = true, label = '' } = {}) {
   const want = expectedDigest(win);
-  assert.ok(want.status.size >= 5 && want.skill.size >= 1, `${label}: the window is not trivial (${want.status.size} statuses, ${want.skill.size} skills)`);
+  const skillEvents = win.filter((e) => e[0] === 'skill').length;
+  assert.ok(want.status.size >= 5 && skillEvents >= 1, `${label}: the window is not trivial (${want.status.size} statuses, ${skillEvents} skill events)`);
   assert.deepEqual(got.filter((x) => x[0] === 'status').map(key).sort(), [...want.status.values()].map(key).sort(), `${label}: the last status change of every (unit, key)`);
-  assert.deepEqual(got.filter((x) => x[0] === 'skill').map(key).sort(), [...want.skill.values()].map(key).sort(), `${label}: the last skill event of every unit`);
+  assert.deepEqual(got.filter((x) => x[0] === 'skill').map(key).sort(), [...want.skill.values()].map(key).sort(), `${label}: the last skill end of every unit`);
+  assert.ok(got.every((x) => x[0] !== 'skill' || !x[2]), `${label}: no skill start replayed (its activation flash / voice)`);
   assert.deepEqual(got.filter((x) => x[0] === 'spawn').map(key), spawns ? [...want.spawned.values()].map((x) => key([x[0], x[1], 'late'])) : [], `${label}: survivors' spawns, in order${spawns ? '' : ' (none: the meta has the live units)'}`);
   assert.ok(got.every((x) => !STALE.has(x[0]) && x[0] !== 'fx'), `${label}: no atk / dmg / heal / die / leak / fx`);
   const nSpawn = got.filter((x) => x[0] === 'spawn').length;

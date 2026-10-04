@@ -7,7 +7,9 @@
 // recalled in the dark stayed drawn. The digest keeps the little that fixes this, and nothing that would draw a stale
 // one-shot:
 //   * the LAST status change of every (unit, key) — on or off (an off ends what the view holds, an on starts its icon);
-//   * the last skill event of every unit;
+//   * the END of a skill (its last 'off' of the span): a skill that began meanwhile and still runs is turned on by the
+//     snapshots' SKILL flag (render/units.js) — replaying its start would flash its activation and play its voice long
+//     after it began;
 //   * the spawn of every unit still alive (survivors only, in order; a die / leak drops the unit's spawn);
 //   * the last 影哨 event of every caster ('sentry' placed / 'sentryRecall' taken back: the later one wins).
 // Never atk / dmg / heal / fx one-shots, and never die / leak: they replay at stale positions in one burst, and
@@ -66,7 +68,9 @@ export class EventDigest {
           break;
         }
         case 'skill':
-          if (e[1] != null) this.skills.set(e[1], { n, e });
+          // only an end: what began and still runs comes back with the SKILL flag (a later start keeps the end: the view
+          // must still end what it held from before)
+          if (e[1] != null && !e[2]) this.skills.set(e[1], { n, e });
           break;
         case 'spawn': {
           const id = e[1] && typeof e[1] === 'object' ? e[1].id : null;
