@@ -100,6 +100,7 @@ import { ResultScreen } from './result.js';
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, serverNow, emptyMatch } from '../store.js';
 import { battleRunner } from '../battle/runner.js';
+import { isEnterEvent } from '../battle/digest.js';
 import { isClientCombat, observeTarget, teammateProgress, cameraLayers, layerCamera, sidesOf, resumedWatch } from '../battle/observe.js';
 import { screenStrip, playerBonds, playerLayer, detailBondOwner, toggleBond, popupView } from '../ui/watchBonds.js';
 import { data, localAsset, getChess } from '../data.js';
@@ -112,7 +113,6 @@ const HUD_HZ_MS = 200;
 const SEL_RANGE = Object.freeze({ group: 'selRange', color: 0xff9c33, fill: 0.3, line: 0.95 });
 /** The tile an armed merge-completing card's elite will take (its own group; gold like the promotion cue, render/fx.js). */
 const MERGE_HL = Object.freeze({ group: 'mergeTile', color: 0xffd45a, fill: 0.34, line: 1 });
-const STATE_EV = new Set(['spawn', 'die', 'deploy', 'status', 'skill']);
 
 /** Router for the in-match screens. */
 export function GameScreen() {
@@ -409,8 +409,9 @@ function MatchScreen() {
     setCam(kind, lone ? { rect: field.rect, side, half: true } : { rect: field.rect, side });
     audio.setFieldUnits(field.units);
     if (early && early.length) {
-      // replay state-bearing events only (a burst of stale hit sparks / damage numbers would look wrong)
-      view.pushEvents(early);
+      // replay state-bearing events and lasting fx only (a burst of stale hit sparks / damage numbers would look wrong);
+      // stamped with the snapshot's game time, so the render clock does not drop a lasting fx as a stale cosmetic one
+      view.pushEvents({ ev: early, gt: earlySnap?.gt });
       audio.handleBattleEvents(early.filter((e) => e[0] === 'spawn'));
     }
     if (!earlySnap && (field.prep || !combat) && Array.isArray(field.units) && field.units.length) {
@@ -491,8 +492,8 @@ function MatchScreen() {
       if (!cur || (msg.fieldId && msg.fieldId !== cur)) {
         if (typeof msg.fieldId !== 'string') return;
         const buf = evBufRef.current.get(msg.fieldId) || [];
-        // only state-bearing tuples are replayed later (see the enter effect)
-        for (const e of msg.ev) if (Array.isArray(e) && STATE_EV.has(e[0])) buf.push(e);
+        // only state-bearing tuples and lasting fx are replayed later (see the enter effect)
+        for (const e of msg.ev) if (isEnterEvent(e)) buf.push(e);
         if (buf.length > 1500) buf.splice(0, buf.length - 1500);
         evBufRef.current.set(msg.fieldId, buf);
         if (evBufRef.current.size > 8) evBufRef.current.delete(evBufRef.current.keys().next().value);

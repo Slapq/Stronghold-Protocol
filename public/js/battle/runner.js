@@ -31,6 +31,12 @@
 // { [playerId]: { [bondId]: n } } (every battle of the round: the own one, the teammates' replicas) whenever one grows;
 // the bond strip of the player on screen — the own one, or a watched teammate's — shows them live (ui/watchBonds.js).
 //
+// Events nobody saw (a hidden tab's pump, an authoritative battle off screen, the silent catch-up before a field is shown)
+// are not thrown away: battle/digest.js keeps the last status / skill change per unit, the survivors' spawns and the
+// 影哨 pairing, and the next frame (or show()) hands them over in ONE b.ev before its snapshot, so no aura, status
+// icon or sentry outlives what the sim ended while the view was not looking; a placeholder never replaces a unit that
+// spawned in the dark. Stale one-shots (atk / dmg / die / leak …) are never replayed.
+//
 // The sim (≈ 0.2–1 ms per tick) runs on the main thread: one battle at a time is stepped for display (plus an
 // authoritative one if it is not the one on screen). stats() exposes the measured cost.
 //
@@ -54,6 +60,7 @@
 import { net as appNet } from '../net.js';
 import { store as appStore } from '../store.js';
 import { unitStatsEntry } from '../../../shared/protocol.js';
+import { EventDigest, isSentryFx, STATE_EV } from './digest.js';
 
 const TICK = 1 / 30;
 /** Fast-forward budget per frame (ticks) when far behind. */
@@ -61,7 +68,6 @@ export const CATCHUP_TICKS = 240;
 /** Silent catch-up slice (ticks) while a new battle is prepared before it is shown. */
 const PREPARE_SLICE = 600;
 const MAX_ENTRIES = 4;
-const STATE_EV = new Set(['spawn', 'die', 'deploy', 'status', 'skill', 'leak']);
 /** Data files the simulation reads (DataSource + content/support gameData()). */
 export const SIM_DATA_FILES = Object.freeze(['chess', 'enemies', 'tokens', 'stages', 'waves', 'bonds', 'items', 'garrisons', 'bands', 'effects']);
 
@@ -303,14 +309,20 @@ export function createBattleRunner(deps) {
     return { ...rest, t: 'b.snap', fieldId: e.fieldId, gt: Number.isFinite(gt) ? gt : 0 };
   }
 
+  /** What the view missed of `e` while it was stepped unseen (battle/digest.js), as one event list; [] when nothing. */
+  function missedEvents(e, opts) { return e.unseen && e.unseen.size ? e.unseen.take(opts) : []; }
+
   function emitFrame(e, catchingUp) {
     let ev = [];
     try { ev = e.battle.drainEvents() || []; } catch { ev = []; }
     const gt = Number(e.battle.time) || 0;
-    if (ev.length) {
-      const list = catchingUp ? ev.filter((x) => Array.isArray(x) && STATE_EV.has(x[0])) : ev;
-      if (list.length) emit('ev', { t: 'b.ev', fieldId: e.fieldId, gt, ev: list });
-    }
+    // a catch-up frame carries state only (a burst of stale hit sparks / numbers would look wrong); a 影哨 placed or
+    // recalled in it must reach the view too, or it stays missing / drawn
+    const list = ev.length && catchingUp ? ev.filter((x) => Array.isArray(x) && (STATE_EV.has(x[0]) || isSentryFx(x))) : ev;
+    // what the view missed before this frame comes first, in the same batch (it is older than anything in `list`)
+    const missed = missedEvents(e);
+    const out = missed.length ? missed.concat(list) : list;
+    if (out.length) emit('ev', { t: 'b.ev', fieldId: e.fieldId, gt, ev: out });
     try { emit('snap', frameOf(e)); } catch (err) { console.warn('[runner] snapshot failed', err); }
   }
 
@@ -428,7 +440,7 @@ export function createBattleRunner(deps) {
     const dt = stepEntry(e, n);
     if (dt > stats.maxFrameMs) stats.maxFrameMs = dt;
     if (render) emitFrame(e, catchingUp);
-    else { try { e.battle.drainEvents(); } catch { /* ignore */ } }
+    else { try { e.unseen.feed(e.battle.drainEvents()); } catch { /* ignore */ } }   // nobody looks: keep the digest, not the events
     noteLeaks(e);
     progress(e);
     if (e.battle.finished) finished(e);
@@ -475,7 +487,10 @@ export function createBattleRunner(deps) {
     emit('field', field);
     try { store.patch('match', { field }); } catch { /* ignore */ }
     publishState();
-    try { e.battle.drainEvents(); } catch { /* the view starts from the meta + this frame */ }
+    try { e.unseen.feed(e.battle.drainEvents()); } catch { /* the view starts from the meta + this frame */ }
+    // the meta builds the live units: only the statuses / skills / 影哨 of the span the view did not see (no spawns)
+    const missed = missedEvents(e, { spawns: false });
+    if (missed.length) emit('ev', { t: 'b.ev', fieldId: e.fieldId, gt: Number(e.battle.time) || 0, ev: missed });
     emit('snap', frameOf(e));
     schedule();
   }
@@ -547,6 +562,8 @@ export function createBattleRunner(deps) {
       leaks: 0, leakMark: '', left: null,
       // live bond layers grown in this battle { [playerId]: { [bondId]: n } } and their total gain (noteLayers)
       live: null, layerSum: 0,
+      // what happened while nobody looked (hidden tab, off screen, the catch-up below), handed over by the next frame / show()
+      unseen: new EventDigest(),
     };
     if (lastPool && battle.sharedBoss && typeof battle.sharedBoss.sync === 'function') {
       e.replayInputs.push({tick:0,kind:'pool',hp:lastPool.hp,acked:lastPool.acked?.[e.fieldId] ?? null});
@@ -556,7 +573,7 @@ export function createBattleRunner(deps) {
     while (!battle.finished && targetTick(e, clock()) - battle.tickCount > ticksPerFrameCap(speed)) {
       const n = Math.min(PREPARE_SLICE, targetTick(e, clock()) - battle.tickCount);
       stepEntry(e, n);
-      try { battle.drainEvents(); } catch { /* ignore */ }
+      try { e.unseen.feed(battle.drainEvents()); } catch { /* ignore */ }
       noteLeaks(e);
       if (e.authoritative) progress(e);
       await yieldFrame();

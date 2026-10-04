@@ -38,6 +38,16 @@ describe('余 S3 灶里乾坤: the fire wall burns for the whole skill', () => {
     assert.deepEqual(FX.wallLine(5, 10, 'col', 'RIGHT'), { axis: 'col', at: 5.5, fixed: 5 });
     assert.deepEqual(FX.wallLine(5, 10, 'col', 'LEFT'), { axis: 'col', at: 4.5, fixed: 5 });
     assert.deepEqual(FX.wallLine(5, 10, 'row', 'UP'), { axis: 'row', at: 10.5, fixed: 10 });
+    assert.deepEqual(FX.wallLine(5, 10, 'row', 'DOWN'), { axis: 'row', at: 9.5, fixed: 10 });
+  });
+
+  test('a held row wall (facing DOWN) spans the field columns', () => {
+    const yu = unit(7, 5, 10, { dir: 'DOWN' });
+    const fx = makeFx([yu]);
+    fx.simFx('firewall', 5, 10, { x: 5, y: 10, id: 7, dir: 'DOWN', axis: 'row' });
+    const S = fx.sustains.get('firewall:7');
+    assert.deepEqual(S.line, { axis: 'row', at: 9.5, fixed: 10 });
+    assert.deepEqual(S.span, [2, 10], 'across the field columns');
   });
 
   test('held while the skill runs (well past the old 2 s flash), gone after skill off', () => {
@@ -74,6 +84,25 @@ describe('余 S3 灶里乾坤: the fire wall burns for the whole skill', () => {
     const fx = makeFx([yu]);
     fx.simFx('firewall', 5, 10, { x: 5, y: 10, id: 7, dir: 'RIGHT', axis: 'col' });
     assert.equal(fx.sustains.size, 0);
+  });
+});
+
+describe('isLastingFxEvent: the fx tuples that are state, not one-shots', () => {
+  test('SUSTAINED kinds, 影哨 recall, enemy auras, channelled beams and their end', async () => {
+    const { isLastingFxEvent, SUSTAINED } = await import('../../public/js/render/fxsustain.js');
+    for (const kind of Object.keys(SUSTAINED)) if (kind !== 'beam') assert.ok(isLastingFxEvent(['fx', kind, 1, 1, { id: 1 }]), kind);
+    assert.ok(isLastingFxEvent(['fx', 'sentryRecall', 1, 1, { id: 1 }]));
+    assert.ok(isLastingFxEvent(['fx', 'telegraph', 1, 1, { kind: 'chimera', id: 2 }]));
+    assert.ok(isLastingFxEvent(['fx', 'beam', 1, 1, { from: 1, to: 2, kind: 'deathEye', dur: 6 }]));
+    assert.ok(isLastingFxEvent(['fx', 'beam', 1, 1, { from: 1, to: 2, kind: 'deathEyeEnd' }]));
+    assert.ok(isLastingFxEvent(['fx', 'beam', 1, 1, { from: 1, to: 2, kind: 'naturalSurge', dur: 4 }]));
+    // one-shots
+    assert.ok(!isLastingFxEvent(['fx', 'beam', 1, 1, { from: 1, to: 2, kind: 'enemyShot' }]), 'a plain beam');
+    assert.ok(!isLastingFxEvent(['fx', 'beam', 1, 1, { dur: 3 }]), 'no pair');
+    assert.ok(!isLastingFxEvent(['fx', 'telegraph', 1, 1, { kind: 'boom' }]), 'a warning flash');
+    assert.ok(!isLastingFxEvent(['fx', 'telegraph', 1, 1, { kind: 'constructor' }]), 'no prototype keys');
+    assert.ok(!isLastingFxEvent(['fx', 'constructor', 1, 1, {}]) && !isLastingFxEvent(['fx', 'burst', 1, 1, {}]) && !isLastingFxEvent(['fx', 'hit', 1, 1]));
+    assert.ok(!isLastingFxEvent(['dmg', 1, 5, 'phys']) && !isLastingFxEvent(['status', 1, 'x', 1]) && !isLastingFxEvent(null) && !isLastingFxEvent(['fx']));
   });
 });
 

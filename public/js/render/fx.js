@@ -1741,7 +1741,8 @@ export class FxSystem {
         break;
       }
       case 'wall': {
-        // a line of burning tiles through the anchor tile along `axis` ('col' | 'row', from the sim event)
+        // a line of burning tiles through the anchor tile along `axis` ('col' | 'row', from the sim event): the FALLBACK
+        // look — while his skill runs the held wall (fxsustain) took the event and simFx never gets here
         const rect = this.ctx.fieldRect ? this.ctx.fieldRect() : null;
         this.tileFlash(wallTiles(Number(x), Number(y), ex.axis === 'row' ? 'row' : 'col', rect), col, Math.max(0.6, dur || 1.5));
         this.zone(at.x, at.y, at.z, 0.6, col, Math.max(0.6, dur || 1.5), spec.tex);

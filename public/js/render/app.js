@@ -1398,7 +1398,7 @@ export async function createFieldView(host, options = {}) {
         if (!info) break;
         gone.delete(info.id);
         const v = battleView(info.id);
-        if (v && info.side === 'enemy' && renderT0Battle != null && now - renderT0Battle > 0.2) fx.ring(info.x, info.y, 0, 0.1, 0.7, 0xff5a4a, 0.4);
+        if (v && info.side === 'enemy' && !e[2] && renderT0Battle != null && now - renderT0Battle > 0.2) fx.ring(info.x, info.y, 0, 0.1, 0.7, 0xff5a4a, 0.4);
         break;
       }
       case 'deploy': {

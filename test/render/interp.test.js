@@ -214,6 +214,30 @@ describe('SnapshotBuffer', () => {
     assert.deepEqual(b.flushEvents().map((e) => e[0]), ['leak']);
   });
 
+  test('a lasting fx (a wall, a taunt, 影哨 …) is state: never dropped as stale cosmetic, while hit sparks / numbers still are', () => {
+    const lasting = [['fx', 'firewall', 5, 10, { id: 1, axis: 'col' }], ['fx', 'taunt', 6, 10, { id: 2 }], ['fx', 'sentryRecall', 4, 10, { id: 3 }], ['fx', 'beam', 1, 1, { from: 4, to: 5, kind: 'deathEye', dur: 6 }]];
+    const oneShots = [['fx', 'burst', 1, 1, {}], ['fx', 'beam', 1, 1, { from: 4, to: 5, kind: 'enemyShot' }], ['fx', 'telegraph', 1, 1, { kind: 'boom' }], ['dmg', 1, 5, 'phys'], ['heal', 1, 3], ['atk', 1, 2, 'none']];
+    for (const e of lasting) assert.ok(!isCosmeticEvent(e), `${e[1]} is not cosmetic`);
+    for (const e of oneShots) assert.ok(isCosmeticEvent(e), `${e[0]}:${e[1]} still is`);
+    // a field entered mid-battle replays a stale history: the lasting starts survive the drop, the one-shots do not
+    const b = new SnapshotBuffer({ delay: 0.5, rate: 2 });
+    b.pushEvents([['spawn', { id: 1 }], ['status', 1, 'ab:exposed', 1], ...lasting, ...oneShots], 0, 1);
+    const out = b.takeEvents(10, [], 5);
+    assert.deepEqual(out.map((e) => e[0] + (e[0] === 'fx' ? `:${e[1]}` : '')), ['spawn', 'status', 'fx:firewall', 'fx:taunt', 'fx:sentryRecall', 'fx:beam']);
+  });
+
+  test('a field entered mid-battle: the early buffer stamped with the snapshot\'s game time is delivered by the render clock, lasting fx included', () => {
+    // screens/game.js: view.pushEvents({ ev: early, gt: earlySnap.gt }) before pushSnapshot(earlySnap)
+    const early = [['spawn', { id: 1 }], ['status', 1, 'ab:exposed', 1], ['skill', 1, 1], ['fx', 'firewall', 6, 10, { id: 1, axis: 'col' }], ['fx', 'taunt', 6, 10, { id: 2 }]];   // (the buffer holds state events and lasting fx only)
+    const b = new SnapshotBuffer({ delay: 0.5, rate: 2 });
+    b.pushEvents(early, 0, 85.1);
+    b.push(snap(85.0, [U(1, 5, 10)]), 0.01);
+    b.push(snap(85.1, [U(1, 5, 10)]), 0.02);
+    const names = (evs) => evs.map((e) => e[0] + (e[0] === 'fx' ? `:${e[1]}` : ''));
+    assert.deepEqual(names(b.takeEvents(b.renderT, [], b.renderT - 1.5)), [], 'not before the render clock reaches the stamp');
+    assert.deepEqual(names(b.takeEvents(85.1, [], 85.1 - 1.5)), ['spawn', 'status', 'skill', 'fx:firewall', 'fx:taunt'], 'then in order');
+  });
+
   test('sample before any snapshot / with NaN time is empty; update before snapshots is NaN', () => {
     const b = new SnapshotBuffer();
     assert.ok(Number.isNaN(b.update(1)));

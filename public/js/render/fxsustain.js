@@ -6,7 +6,10 @@
 // 荒芜拉普兰德's drones were three 'summon' pillars a second. Each such fx now becomes ONE record keyed by kind and unit,
 // drawn until its end signal (FX audit, 2026-10):
 //   'skill'  — the caster's skill ends (['skill', id, 0], also sent on death / retreat), or its snapshot flag drops;
-//   'status' — every status the unit gained in the same batch of events as the fx went off again (['status', id, k, 0]);
+//   'status' — every status the unit gained (and still has) when the fx went off, or the one status a kind names (`status`
+//              hint: expose / wanted / reveal) — ended by ['status', id, k, 0] once all of them are off. Never inferred
+//              from what else fell into the same batch of events: a render frame holds 1 tick of a local battle, 3+ of a
+//              server one and a whole hidden-tab catch-up, and the same match must show the same auras in all of them;
 //   'time'   — the event's `duration` / `dur` (game s) ran out;
 //   'life'   — the anchor unit dies (or the battle view clears);
 //   'manual' — a later event ends it (影哨: its recall).
@@ -27,11 +30,14 @@ const AURA = (o) => Object.freeze({ look: 'aura', until: 'auto', ...o });
 
 /**
  * Lasting sim fx kinds → look. 'wall': a burning line across the field 0.5 tile in front of the caster (余 S3 灶里乾坤);
+ * while his skill runs it is the ONLY look of the wall (render/fx.js's one-shot tile column is the fallback) and it is
+ * visual — the sim's burn / bullet-block line is the logic line on his tile centre (docs/SIM.md);
  * 'field': a ground field of radius `r` centred on the caster (`centred`: only when the event is on the caster);
  * 'aura': a state on a unit — `ring` ground decal (`spin` rad/s, `pulse` Hz), `glow` chest glow, `bubble` shield
  * bubble, `orbit` sprites circling it, `head` mark above it, `rise` particles (`rate` /s), `ripple` rings every n s,
  * `mid` also when emitted in the middle of the unit's skill (else only at its start), `cap` at most that many game s
- * (a match-long passive — 能天使's talent blessing, 临光's stand — is announced, not looped forever); 'link': lines between units;
+ * (a match-long passive — 能天使's talent blessing, 临光's stand — is announced, not looped forever), `status` the one sim
+ * status it comes with (bound to it alone, and revived from the unit's current statuses while it is on); 'link': lines between units;
  * 'beam': a channelled beam (`dur`); 'drones' / 'motes': virtual drones / orbiting motes; 'sentry': 伊内丝's 影哨;
  * 'tiles': 圣聆初雪's snow; 'vortex': a turning wind (歌蕾蒂娅 S3, 异客 S3); 'enemyAura': an enemy's aura ring.
  */
@@ -73,9 +79,9 @@ export const SUSTAINED = Object.freeze({
   undying: AURA({ bubble: 0.26, glow: 0.2, cap: 10 }),
   buff: AURA({ rise: 'chevron', rate: 1.6, cap: 20 }),
   bondShare: AURA({ ring: 'soft', ripple: 2 }),
-  wanted: AURA({ head: 'reticle' }),
-  expose: AURA({ head: 'reticle' }),
-  reveal: AURA({ head: 'reticle' }),
+  wanted: AURA({ head: 'reticle', status: 'lemuen:wanted' }),
+  expose: AURA({ head: 'reticle', status: 'ab:exposed' }),
+  reveal: AURA({ head: 'reticle', status: 'reveal' }),
   // links, channels, virtual entities, ground state, winds
   link: { look: 'link' },
   beam: { look: 'beam' },
@@ -95,6 +101,20 @@ export const ENEMY_AURAS = Object.freeze({
   regenShield: { tint: 0x9fd4ff, until: 'time' },    // 再生护盾: while the husk waits to revive
 });
 
+/**
+ * Is this b.ev tuple a sim fx that starts / refreshes / ends a lasting record (a SUSTAINED kind, 影哨's recall, an
+ * enemy aura, a channelled beam or its end) — state, not a one-shot? Such an event is never dropped as a stale cosmetic
+ * one (render/interp.js) and is kept for a field entered mid-battle (screens/game.js); hit sparks and numbers are not.
+ */
+export function isLastingFxEvent(e) {
+  if (!Array.isArray(e) || e[0] !== 'fx' || typeof e[1] !== 'string') return false;
+  const kind = e[1], ex = e[4] && typeof e[4] === 'object' ? e[4] : null;
+  if (kind === 'telegraph') return !!ex && Object.hasOwn(ENEMY_AURAS, ex.kind);
+  // the many one-shot beams carry from / to too: only a channel (`dur`) and the end of one (deathEyeEnd) are state
+  if (kind === 'beam') return !!ex && ex.from != null && ex.to != null && (num(ex.dur ?? ex.duration, 0) > 0 || ex.kind === 'deathEyeEnd');
+  return Object.hasOwn(SUSTAINED, kind) || kind === 'sentryRecall';
+}
+
 /** The line of a sustained wall: `axis` 'col' → x = const, 'row' → y = const, 0.5 tile towards `dir` from (x, y). */
 export function wallLine(x, y, axis, dir) {
   const D = { UP: [0, 1], RIGHT: [1, 0], DOWN: [0, -1], LEFT: [-1, 0] }[String(dir || '').toUpperCase()] || [0, 0];
@@ -111,9 +131,9 @@ export class Sustains {
     this.fx = fx;
     this.map = new Map();
     // what happened to each unit in the current batch of events (reset after every FxSystem.update)
-    this.bOn = new Map();       // id → Set of statuses switched on
-    this.bOff = new Map();      // id → Set of statuses switched off
+    this.bOn = new Map();       // id → Set of statuses switched on (consumed by the unit's next aura fx, see _aura)
     this.bSkill = new Set();    // ids whose skill started
+    this.batchNo = 0;           // counts batches (endBatch): a record ended by its status in THIS batch = its fx is a 'use'
     const P = fx.P;
     this.gfx = new P.Graphics();
     this.gfx.blendMode = P.BLEND_MODES.ADD;
@@ -142,15 +162,16 @@ export class Sustains {
   /** ['status', id, key, on]: records bound to that status end once all their statuses are off. */
   status(view, key, on) {
     if (!view || typeof key !== 'string') return;
-    const m = on ? this.bOn : this.bOff;
-    let set = m.get(view.id);
-    if (!set) m.set(view.id, (set = new Set()));
-    set.add(key);
-    if (on) return;
+    if (on) {
+      let set = this.bOn.get(view.id);
+      if (!set) this.bOn.set(view.id, (set = new Set()));
+      set.add(key);
+      return;
+    }
     for (const S of this.map.values()) {
       if (S.until !== 'status' || S.anchor !== view.id || !S.bind?.has(key)) continue;
       S.bind.delete(key);
-      if (!S.bind.size) S.end = true;
+      if (!S.bind.size) { S.end = true; S.endBatch = this.batchNo; }
     }
   }
 
@@ -172,8 +193,8 @@ export class Sustains {
   }
 
   endBatch() {
+    this.batchNo++;
     if (this.bOn.size) this.bOn.clear();
-    if (this.bOff.size) this.bOff.clear();
     if (this.bSkill.size) this.bSkill.clear();
   }
 
@@ -194,7 +215,8 @@ export class Sustains {
     const spec = SUSTAINED[kind];
     if (!spec) return false;
     switch (spec.look) {
-      case 'wall': case 'field': this._field(kind, spec, x, y, ex, tint); return false;
+      case 'field': this._field(kind, spec, x, y, ex, tint); return false;
+      case 'wall': return this._field(kind, spec, x, y, ex, tint);   // the held wall is the only look: no second, half-a-tile-off one-shot
       case 'aura': this._aura(kind, spec, ex, tint); return false;
       case 'link': this._link(ex, tint); return true;
       case 'beam': return this._beam(ex, tint);
@@ -220,15 +242,33 @@ export class Sustains {
   }
 
   /**
-   * How a unit-state fx on `v` ends: bound to the statuses `v` gained in this batch; a status lost in this batch
-   * (and none gained) = the fx marks something used up → nothing lasts; else its `duration`; else its skill — when
-   * the skill started in this batch (an onStart effect) or the kind is `mid`; else nothing lasts (a one-off).
+   * How a unit-state fx on `v` ends, whatever the batching of the events (one render frame holds 1 tick of a local
+   * battle, 3+ of a server one, a whole hidden-tab / mid-battle catch-up) — in this order:
+   *  1. a running record bound to a status that is still on: this fx only refreshes it ('keep');
+   *  2. bound to the statuses `v` gained in this batch that are STILL on (an on / off pair inside one batch binds
+   *     nothing; a kind with a `status` hint binds only to that one); a hinted kind whose status is on right now binds
+   *     to it even when the batch gained nothing (the sim re-announces expose / wanted on every refresh: a record
+   *     lost to a hand-over heals at the next one);
+   *  3. the status THIS record was bound to ended in this batch: the fx marks a use (a block consumed) → nothing lasts;
+   *  4. its `duration`;
+   *  5. its skill — when the skill started in this batch (an onStart effect) or the kind is `mid`;
+   *  6. nothing lasts (a one-off).
    */
-  _policy(spec, v, ex) {
-    const on = this.bOn.get(v.id), off = this.bOff.get(v.id);
+  _policy(spec, v, ex, cur) {
+    const present = (k) => !(v.statuses instanceof Set) || v.statuses.has(k);
+    const on = this.bOn.get(v.id);
     const cap = spec.cap > 0 ? spec.cap / this._ts() : Infinity;
-    if (on && on.size) return { until: 'status', bind: new Set(on), max: Math.min(cap, MAX_STATUS) };
-    if (off && off.size) return { until: 'consumed' };
+    // statuses gained in this batch that are STILL on (an on / off pair inside one batch leaves nothing to bind to)
+    let gained = on ? [...on].filter((k) => k !== 'skill' && present(k)) : [];
+    // a kind that names the status it comes with binds to that one only (an unrelated status gained in the same batch must not hold it)
+    if (spec.status && gained.includes(spec.status)) gained = [spec.status];
+    // a running record bound to a status that is still on: this fx only refreshes it, whatever else the batch holds
+    if (cur && !cur.end && cur.until === 'status' && cur.bind && [...cur.bind].some(present)) return { until: 'keep', bind: new Set(spec.status ? gained.filter((k) => k === spec.status) : gained) };
+    // a hinted kind whose status is on right now (a refresh after a hand-over or an ended record): bind to it
+    if (!gained.length && spec.status && v.statuses instanceof Set && v.statuses.has(spec.status)) gained = [spec.status];
+    if (gained.length) return { until: 'status', bind: new Set(gained), max: Math.min(cap, MAX_STATUS) };
+    // the status this very record was bound to ended in this batch: the fx marks a use (a block consumed) → nothing lasts
+    if (cur && cur.end && cur.endBatch === this.batchNo) return { until: 'consumed' };
     const dur = num(ex.duration ?? ex.dur, 0);
     if (dur > 0) return { until: 'time', max: Math.min(cap, dur / this._ts()) };
     if (skillOn(v) && (this.bSkill.has(v.id) || spec.mid)) return { until: 'skill', src: v.id, max: Math.min(cap, MAX_SKILL) };
@@ -237,10 +277,10 @@ export class Sustains {
 
   _field(kind, spec, x, y, ex, tint) {
     const v = this._view(ex.id);
-    if (!live(v) || !skillOn(v)) return;
+    if (!live(v) || !skillOn(v)) return false;
     // 圣聆初雪's snow carries its tiles ('snowTiles' draws them): never a disc on her
-    if (kind === 'snow' && ex.tiles != null) return;
-    if (spec.centred && Number.isFinite(x) && Number.isFinite(y) && Math.hypot(v.x - x, v.y - y) > 0.75) return;
+    if (kind === 'snow' && ex.tiles != null) return false;
+    if (spec.centred && Number.isFinite(x) && Number.isFinite(y) && Math.hypot(v.x - x, v.y - y) > 0.75) return false;
     const key = `${kind}:${ex.id}`;
     let S = this.map.get(key);
     if (!S || S.view !== v) {
@@ -256,6 +296,7 @@ export class Sustains {
       const f = S.line.fixed;
       S.span = axis === 'col' ? (ok ? [rect.r0, rect.r1] : [f - 4, f + 4]) : (ok ? [rect.c0, rect.c1] : [f - 4, f + 4]);
     } else S.r = clamp(num(ex.r ?? ex.radius, spec.r), 0.5, 8);
+    return true;
   }
 
   _enemyAura(ex, x, y) {
@@ -283,9 +324,15 @@ export class Sustains {
     if (!live(v)) return;
     const key = `${kind}:${v.id}`;
     const cur = this.map.get(key);
-    const pol = this._policy(spec, v, ex);
+    const pol = this._policy(spec, v, ex, cur);
+    this.bOn.delete(v.id);                      // the statuses gained before this fx belong to it, not to a later fx of the same batch
     if (!pol) return;                           // a one-off (a refresh keeps a running record as it is)
     if (pol.until === 'consumed') { if (cur) cur.end = true; return; }
+    if (pol.until === 'keep') {
+      for (const k of pol.bind) cur.bind.add(k);
+      if (ex.n > 0 && cur.orb) this._setOrbitN(cur, Math.round(ex.n));
+      return;
+    }
     if (cur && !cur.end && cur.until === pol.until) {
       if (pol.bind) for (const k of pol.bind) cur.bind.add(k);
       if (pol.max > cur.max - cur.t) cur.max = cur.t + pol.max;
