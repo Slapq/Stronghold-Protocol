@@ -17,7 +17,9 @@
 // getter re-read 4× a second: current HP, max HP, ATK, DEF, RES, attack interval, block), in prep the stats the own
 // board's units start their next battle with (m.unitStats: equipment, bonds / layers, 特质, band and 机变 effects). Each
 // value is coloured against the unit's base like the official card — green when it helps (higher, or a shorter attack
-// interval) with the difference beside it, red when it hurts — and a 实时 / 开战时 tag says which it is.
+// interval) with the difference beside it, red when it hurts — and a 实时 / 开战时 tag says which it is. The header's HP bar
+// follows the drawn picture (the snapshot's HP, released 0.5 s behind the sim like the unit's own bar: hpOf); the other
+// live numbers are a direct sim read.
 
 import { html, Icon, TierChip, MicroLabel, Button, confirmDialog, useTicker } from './components.js';
 import { Img, RichText, UnitThumb, BondGlyph, GIcon } from './gameComponents.js';
@@ -106,8 +108,12 @@ function LiveTag({ live }) {
 const fmtInterval = (v) => (Number.isFinite(v) && v > 0 ? `${v.toFixed(2)}s` : '—');
 const fmtRes = (v) => (Number.isFinite(v) ? String(Math.round(v * 10) / 10) : '0');
 
-/** HP bar of the card header: the live HP in battle, else the snapshot's. */
-function hpOf(live, snapHp) {
+/**
+ * HP bar of the card header: the drawn snapshot's HP (the picture runs 0.5 s behind the sim — the bar moves with the
+ * unit's own bar), else the live HP of the battle (the unit is gone from the drawn frame, or the card has no snapshot).
+ */
+export function hpOf(live, snapHp) {
+  if (snapHp && Number.isFinite(snapHp.hp) && Number.isFinite(snapHp.max)) return snapHp;
   if (live && live.src === 'battle' && Number.isFinite(live.hp) && Number.isFinite(live.maxHp)) return { hp: live.hp, max: live.maxHp };
   return snapHp || null;
 }
