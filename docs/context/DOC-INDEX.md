@@ -105,7 +105,7 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;11. `waves.json` — `{ [templateId]: Wave }` (38 templates) | 386–410 | 3.0 KB |
 | &nbsp;&nbsp;12. `stages.json` — `{ [stageId]: Stage }` (11 terrains, 8 active) | 411–446 | 6.3 KB |
 | &nbsp;&nbsp;13. `bosses.json` — `{ [bossId]: Boss }` (10; boss_8–10 hidden) | 447–459 | 1.5 KB |
-| &nbsp;&nbsp;14. `tokens.json` — `{ [tokenId]: Token }` (57) | 460–485 | 4.9 KB |
+| &nbsp;&nbsp;14. `tokens.json` — `{ [tokenId]: Token }` (61) | 460–485 | 5.5 KB |
 | &nbsp;&nbsp;14b. `waiguan.json` — `{ candidates, chess, chessT5 }` — 外援 / 甄选 (DIY) roster | 486–552 | 7.5 KB |
 | &nbsp;&nbsp;15. Anomalies found while joining (also in `.cache/build-data-report.json`) | 553–612 | 6.3 KB |
 | &nbsp;&nbsp;16. Counts (current build) | 613–618 | 520 B |
@@ -194,8 +194,8 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;&nbsp;&nbsp;19.7 Maps: blower machines, boss-field deployment (#6, #7) — `render/board3d/layout.js`, `render/tiles.js`, `render/app.js`, `server/match/board.js`, `Match.startRound` / `bossGroupOf` / `deployFieldOf`, `ui/gameLogic.js`, `ui/fallbackField.js` | 814–821 | 4.3 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;19.8 Settings gear; the shop bar over the bench on phones (#8, #9) — `ui/gameComponents.js`, `render/projection.js`, `ui/fieldHost.js`, `render/app.js`, `css/devices.css` | 822–839 | 3.5 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;19.9 至简's price (#11) — `sim/content/garrisons/meta.js SERVER_CHESS_PRICE`, `server/match/effectsMeta.js dispatch` | 840–848 | 1.4 KB |
-| &nbsp;&nbsp;20. User playtest #6 (v2.5): summons, skill triggers, blocking, push force, enemies, boss pool, bounties, 机变 cards, element gauge; leader HP, elite to the board, official limits | 849–1137 | 80 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;20.1 Summons placed by hand (#1, #2) — `tools/build-data.mjs`, `match/gamedata.js placeableTokens`, `PlayerState`, `match/bot.js`, `sim/Battle.js`, `content/tokens.js`, kits tier2/3/4, `ui/detailPanel.js`, `shared/constants.js SKILL_SUMMON_START_DEPLOY` | 858–867 | 5.0 KB |
+| &nbsp;&nbsp;20. User playtest #6 (v2.5): summons, skill triggers, blocking, push force, enemies, boss pool, bounties, 机变 cards, element gauge; leader HP, elite to the board, official limits | 849–1137 | 81 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;20.1 Summons placed by hand (#1, #2) — `tools/build-data.mjs`, `match/gamedata.js placeableTokens`, `PlayerState`, `match/bot.js`, `sim/Battle.js`, `content/tokens.js`, kits tier2/3/4, `ui/detailPanel.js`, `shared/constants.js SKILL_SUMMON_START_DEPLOY` | 858–867 | 5.3 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;20.2 Skill triggers and buffs (#15, #16, #8, #3) — `tools/build-data.mjs resolveTrigger`, `sim/skills.js`, `sim/Battle.js`, `sim/targeting.js`, `sim/snapshot.js`, kits | 868–889 | 6.3 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;20.3 Combat rules: blocking, ASPD floor, push / pull force vs weight, 炎佑 / 孤立 (#17, #14, #18) — `targeting.js sortEnemyTargets`, `Battle.blockedTargets / push / pull / pullToFront / allySelectable / alliesFor`, `constants.js ASPD_MIN / PUSH_TILES(_EFFECT)`, kits, `tools/build-data.mjs TOKEN_ABNORMAL` | 890–914 | 7.7 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;20.4 Enemies: 萨卡兹枯朽战车, the “萨科塔” 恐惧, 威龙's size (#12, #13, #9) — `sim/fear.js`, `ai.js`, `grid.js straightClear`, `Battle.applyStatus`, `content/enemies.js` (kitTank, pollution), `constants.js ALLY_COLLIDER_RADIUS`, `tools/build-data.mjs MODEL_SCALES`, `render/units.js` | 915–930 | 6.0 KB |
@@ -354,7 +354,7 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;1. 一局的流程 | 7–36 | 8.1 KB |
 | &nbsp;&nbsp;2. 经济 | 37–52 | 2.4 KB |
 | &nbsp;&nbsp;3. 招募、整备区与晋升 | 53–62 | 3.6 KB |
-| &nbsp;&nbsp;4. 摆阵与朝向 | 63–80 | 12 KB |
+| &nbsp;&nbsp;4. 摆阵与朝向 | 63–80 | 13 KB |
 | &nbsp;&nbsp;5. 联防（同盟） | 81–92 | 2.1 KB |
 | &nbsp;&nbsp;6. 盟约 | 93–108 | 4.8 KB |
 | &nbsp;&nbsp;7. 最终攻势与隐秘核心 | 109–117 | 3.9 KB |

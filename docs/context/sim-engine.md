@@ -22,9 +22,10 @@ loadout). The engine deploys everything, auto-casts every skill by trigger rule,
 | "A KO'd operator respawns at its home tile." | It lies where it fell (`body`) and redeploys there. Exception: when it fell on another piece's home, it goes back to its own home if that is free. No ally may deploy on a body tile. | Battle.js:2112-2147, 1073-1088 |
 | "Kits are keyed by chess id incl. `_b`." | Kits are keyed by `baseId` (`chess_char_X_YY_a`). The exact id or the suffix-less id is also accepted. Elites `_b` share the kit. | content/index.js:64-67; kits/tier1.js:3 |
 | "A non-default skill uses `kit.skill`." | Lookup order: `kit.skills[selectedSkillId]`, else `kit.skill` (default skill only), else the **generic** spec. Talents, trait and `install` always come from the kit. | content/index.js:155-167 |
+| "Chess without a kit have no talents." | `genericKit` derives talents from the def's talent texts + module trait addition (`content/genericTalents.js`: text = effect, blackboard = numbers; unknown condition ⇒ dropped). Hand kits never run it. | generic.js genericKit; genericTalents.js header |
 | "The Battle decides win/loss/LP." | The Battle only reports `reason` 'cleared' / 'timeout' / 'forced' plus per-player `leaked` / `perfect`. On timeout, enemies still alive count as leaks. The match charges LP = min(lpCapPerRound, counted leaks) per normal round. | Battle.js:479-544; Match.js:3164-3174 |
 | "Only enemies in range can be hit." | A blocker can always target the enemies it blocks, in range or not, whatever its facing (ranged blockers too). Heal attacks are the exception. | Battle.js:1159-1164; ai.js:107-143 |
-| "Summons cost DP / come only with the skill." | `spawnToken` never charges DP. A skill summon placed on the board deploys once, free, at the battle start (`SKILL_SUMMON_START_DEPLOY = true`). After that it is docked until the skill gives one. | Battle.js:1812-1839; shared/constants.js:87; tokens.js:290-345 |
+| "Summons are free / come only with the skill." | `spawnToken` never charges DP (summons no hand holds). A skill summon placed on the board deploys once, free, at the battle start (`SKILL_SUMMON_START_DEPLOY = true`). After that it is docked until the skill gives one; that return is free for a pool summoner (upstream reading) and **pays its deploy cost** for a 外援 one (`deployDocked`: `free` unless the owner is a `chess_char_diy_` record; waits for the DP). Generic summons (外援) come back after their redeploy time, paying, and consumables have a per-battle stock. | Battle.js:1812-1839; shared/constants.js:87; tokens.js:297-360; genericSummons.js:1-40 |
 | "The server simulates every battle." | The default is client-side combat (`SP_COMBAT=server` = legacy). The browser runs `createBattleFromSpec` from the same spec. The server re-simulates on takeover or verification. | Match.js:180-181, 374, 2541-2601; public/js/battle/runner.js:730 |
 | "Time limits are real seconds." | Battle time is game seconds. The match passes the real `combatTimeLimit` × `combatTimeScale` (2). | gamedata.js:431-439 |
 | "外援 are not in battle data." | A `DataSource` whose data includes `waiguan` merges the 外援 records (tier V/VI, normal/elite): `Match.ds` (all match battles), the browser runner (`SIM_DATA_FILES` has `waiguan`), the Worker replay/recovery engines. `getDefaultSource()` stays the shop pool's (pool coverage tests). Before this fix `Battle` silently skipped them. | server/sim/simdata.js; public/js/battle/runner.js |
@@ -46,7 +47,7 @@ loadout). The engine deploys everything, auto-casts every skill by trigger rule,
 | Targeting / ranges / blocking | targeting.js:25-229; Battle.js:1122-1222, 1731-1775; constants.js:30-37 | DESIGN §3 (125); SIM.md §1.2 (211) |
 | Professions | professions.js:39-648 | SIM.md §8 (1112) |
 | Data / loadouts | simdata.js:99-198, 514-725 | SIM.md §12 (1268); DESIGN §16 (605) |
-| Kit loader, generic kit, summons | content/index.js:1-218; generic.js:1-393; tokens.js:1-90, 285-345 | SIM.md §7.2–7.4 (851-970) |
+| Kit loader, generic kit, summons | content/index.js:1-224; generic.js:1-434; genericSummons.js:1-693; tokens.js:1-97, 290-360, 1480-1590 | SIM.md §7.2–7.4 (851-970) |
 | Spec, client combat, match → battle opts | spec.js:1-133; Match.js:2112-2166, 2290-2363; PlayerState.js:1548-1581 | DESIGN §14 (547), §6 (319) |
 | Wire format | snapshot.js:22, 110; Battle.js:2313-2362 | SIM.md §9 (1182) |
 
@@ -211,9 +212,19 @@ loadout). The engine deploys everything, auto-casts every skill by trigger rule,
   SIM.md §7.3 (914). There are 129 `chess_char_*` keys across tier1–6. `tools/kit-coverage.mjs --missing` (run 2026-10-06) reports 112/112 chess and
   283/283 selectable skills hand-authored.
 - `generic.js`: `genericKind` (75-89) and `genericSkillSpec` (106) map blackboard keys (atk → atkPct, …, header 8-38). Used for chess without a kit,
-  for non-authored skills, and for tokens with skills (index.js:59, 77).
-- `tokens.js`: one kit per token id (1379-1384, header 6-55); `install` (1468) calls `dockSkillSummons` (290-311). `releaseSkillSummon` (337-345)
-  deploys a docked piece when the owner's skill grants one: free, at most 1 in stock. Exports `findSummonTile`, `summonToken`, `spawnYanyou`, ….
+  for non-authored skills, and for tokens without a token kit (index.js:54-66, 83). `genericKit` also carries the **generic talents**
+  (`genericTalents.js` `genericTalentSpecs(def)`: rules F1 stats … F10 survival, DP via `battle.addDp` / `base.cost`; `talentCoverage(def)`
+  reports applied patterns and dropped clauses; test/sim/generic-talents.test.js). The loadout-resolved def makes elite talents, module talent
+  changes and the module trait addition follow the selection.
+- `tokens.js`: one kit per token id (1391-1395, header 6-62); `install` (1480) calls `dockSkillSummons` (297-322). `releaseSkillSummon` (348-356)
+  deploys a docked piece when the owner's skill grants one: free for a pool owner, paying its deploy cost for a 外援 owner, at most 1 in stock. The per-owner deploy limit also
+  covers generic summons. Exports `findSummonTile`, `summonToken`, `spawnYanyou`, `genericTokenKit`, ….
+- `genericSummons.js` (summons of chess without a hand kit — the 外援 ones; header 1-40): `genericTokenKit` (index.js full mode for a
+  token without a token kit: the owner kit's `tokenKits[id]` → `ownerManaged`; else a trap kit or the generic kit + generic summon
+  talents, minus the owner kit's `managedTokenTalents`; a hand-authored owner kit without `genericSummons: true` owns its summons
+  entirely — they keep their own skill's generic spec, no generic talents, no trap / no-attack readings, no deploy-limit policing); `installGenericSummoner` (tokens.js `install`, for a generic-kit owner or a
+  hand kit with `genericSummons: true`): returns paying DP, consumable stock (talent "可以使用N个" / container, skill gains, recalls),
+  lifetimes, hidden summons, owner → summon links. State on `owner.mem.genericSummons`; tests test/content/generic-summons.test.js.
 - Domain modules each export `install(battle)` (battle side) and `registerMeta(registry)` (prep side, called once at boot by
   match/effectsMeta.js:122). Split files:
   - `bonds.js` → core.js (8 core bonds) + addon (15 add-on bonds) (bonds.js:1-40);

@@ -47,7 +47,9 @@ Every brief opens with **"Facts agents get wrong"** — read that table before c
   cooldown; trigger rule `MANUAL` (renamed `NEVER`) means "the kit casts it itself". Test harness `makeBattle` sets
   `startOpCooldown: 0` (production 3 s).
 - **Kits are keyed by base chess id** (`chess_char_X_YY_a`); elites `_b` share the kit. Skill spec lookup: `kit.skills[id]` →
-  `kit.skill` (default skill only) → generic. Talents/trait/install come only from a hand kit (`generic` has `talents: []`).
+  `kit.skill` (default skill only) → generic. A hand kit authors all its talents/trait/install; a chess WITHOUT a kit gets
+  generic talents derived from its (loadout-resolved) talent texts + module trait addition (`content/genericTalents.js`,
+  `talentCoverage(def)` lists what is applied and dropped).
 - **Stat stacking**: ATK% from all sources is summed (`atkPct`), only `*Mul` keys multiply; one buff instance per key.
 - **Elite = golden = `_a` → `_b`**; merges use `goldenIdOf`, not `upgradeChessId` (that field is for items).
 - **外援 / 甄选 (DIY)**: 87 candidates live only in `data/waiguan.json` (never in chess.json); tier V records are overlays
@@ -101,8 +103,12 @@ node tools/kit-coverage.mjs --missing    # which selectable skills lack a hand-a
 
 ## Known open issues (keep this list current)
 
-- 外援 kits: being hand-authored one file per operator (`server/sim/content/kits/waiguan/`); the rest still run generic skills
-  and no talents. Modules: every 外援 elite carries its operator's modules at its slot's level (85/87 active; tier V level 1,
-  tier VI level 3; fixed 2026-10-06, the tier V elites used to carry level 3); kits must read module numbers from the record.
+- 外援 kits: hand-authored ones live one file per operator in `server/sim/content/kits/waiguan/` (阿, 凯尔希, 令, 伊芙利特,
+  年, 煌, 早露 so far; `index.js` is generated). 外援 without one: skills generic, talents generic (`content/genericTalents.js`: ≈ two thirds of
+  the talent texts; mechanics like 魔力 / 能量 / 我执 / 命中率 / faction groups are dropped, see `talentCoverage`).
+  Their summons are generic too (`content/genericSummons.js`: returns, stock, traps, lifetimes, links); not modelled: 望's 棋子
+  links / extra piece, 娜斯提's 高台, 战术锚点 / 牵绊 / “一会儿见！” moves, 黑键's 能量 count, 死芒's upgrades,
+  中继器 redirects, 指挥中心 援军 area (the summon stands, its owner-side mechanic is missing). Modules: every 外援 elite carries its operator's modules at its
+  slot's level (85/87 active; tier V level 1, tier VI level 3); kits read module numbers from the record.
 - Stale docs: DESIGN.md §2 client file list, DATA.md:3 (not all data is from build-data), asset counts in ASSETS.md,
   `docs/CONTENT.md` referenced by server/sim/content/support/index.js does not exist.
