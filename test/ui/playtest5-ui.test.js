@@ -105,11 +105,12 @@ describe('8: the settings gear is a clean, regular icon', () => {
 const remAt = (w, h) => Math.max(40, Math.min(w / 19.2, h / 10.8, 240));
 
 /** Run `fn` with a stubbed DOM: the root font size, and the HUD layer's top (safe-area inset). */
-function withDom(rem, hudTop, fn) {
+function withDom(rem, hudTop, fn, classes = [], cornerTop = null) {
   const g = globalThis;
   const saved = { document: g.document, getComputedStyle: g.getComputedStyle };
   g.getComputedStyle = () => ({ fontSize: `${rem}px` });
-  g.document = { documentElement: {}, querySelector: (s) => (s === '.gm__hud' ? { getBoundingClientRect: () => ({ top: hudTop }) } : null) };
+  const rects = { '.gm__hud': { top: hudTop, height: 0 }, '.gm__corner': cornerTop == null ? null : { top: cornerTop, height: 40 } };
+  g.document = { documentElement: { classList: { contains: (c) => classes.includes(c) } }, querySelector: (s) => (rects[s] ? { getBoundingClientRect: () => rects[s] } : null) };
   try { return fn(); } finally { g.document = saved.document; g.getComputedStyle = saved.getComputedStyle; }
 }
 
@@ -145,10 +146,28 @@ describe('9: the prep camera keeps the bench clear of the shop bar on phones in 
     withDom(40, 0, () => assert.deepEqual(hudBands('prep', { width: 640, height: 200 }), { top: 80, bottom: 80 }), 'clamped at 40 % of the height');
   });
 
+  test('touch screens: the zoom-out stops at the official framing; a collapsed shop leaves only its corner tab', () => {
+    const coarse = ['sp-touch', 'sp-coarse'];
+    const open = withDom(40, 0, () => hudBands('prep', { width: 780, height: 300 }, {}), coarse);
+    assert.deepEqual(open, { top: 86.4, bottom: 40 * HUD_REM.shopBarTop + 3, minZoom: 1 });
+    const shut = withDom(40, 0, () => hudBands('prep', { width: 780, height: 300 }, { shop: false }), coarse);
+    assert.deepEqual(shut, { top: 86.4, bottom: 40 * HUD_REM.shopTabTop, minZoom: 1 });
+    // the bottom-left corner's buttons (measured): the bench stays above them
+    const corner = withDom(40, 0, () => hudBands('prep', { width: 780, height: 300 }, { shop: false }), coarse, 256);
+    assert.deepEqual(corner, { top: 86.4, bottom: 45, minZoom: 1 });
+    // a mouse: as before (the collapsed bar keeps the shop camera's band, no floor)
+    assert.deepEqual(withDom(40, 0, () => hudBands('prep', { width: 780, height: 300 }, { shop: false })), { top: 86.4, bottom: 40 * HUD_REM.shopBarTop + 3 });
+    const shop = read('public/css/screens/game-shop.css');
+    assert.match(shop, /\.shopbar-tab \{ position: absolute; right: \.26rem; bottom: \.2rem;/, 'the tab sits .2rem above the bottom edge, in the right corner');
+    const game = read('public/js/screens/game.js');
+    assert.match(game, /const ownPrepOpts = touchUi && collapsed \? \{ \.\.\.prepCam\.opts, shop: false \} : prepCam\.opts;/);
+    assert.match(game, /setCam\(prepCam\.kind, ownPrepOpts\);/);
+  });
+
   test('wiring: the game hands hudBands to the view, the view to the prep cameras', () => {
     assert.match(read('public/js/ui/fieldHost.js'), /padding: hudPadding, hud: hudBands \}/);
     const app = read('public/js/render/app.js');
-    assert.match(app, /hud: hudBands\(vk, sz\),/);
+    assert.match(app, /hud: hudBands\(vk, sz, o\),/);
     assert.match(app, /presetCamera\('prep', \{ width: s0\.width, height: s0\.height, padding: defaultPadding\('prep', s0\) \}, \{ hud: hudBands\('prep', s0\) \}\)/);
   });
 

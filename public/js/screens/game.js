@@ -277,6 +277,10 @@ function MatchScreen() {
   // that half (ui/fallbackField.js: the legal fence tiles are floor, not the normal field's walls; user playtest #5 item 7).
   const prepCam = prepCamera(pub, myId);
   const prepCamKey = `${prepCam.kind}:${prepCam.opts.side}`;
+  // on a touch screen a collapsed shop bar frames the own board with the official prepare camera, closer than the shop
+  // one and with no bar to clear (ui/fieldHost.js hudBands: the phone's pieces were too small to tap)
+  const touchUi = typeof document !== 'undefined' && document.documentElement.classList.contains('sp-coarse');
+  const ownPrepOpts = touchUi && collapsed ? { ...prepCam.opts, shop: false } : prepCam.opts;
   const prepCamSeen = useRef(prepCamKey);                // the prep camera last requested
   const camRef = useRef({ kind: 'prep', opts: { rect: { ...GEO.NORMAL_RECT }, side: 'L' } });
   const penRef = useRef({ on: false, collapsed: false });
@@ -364,7 +368,7 @@ function MatchScreen() {
         // the battle we just left (or whatever was stored before mount) must not be re-entered next combat;
         // an m.field that arrives during prep (the upcoming battle) is a new object and will be entered
         staleFieldRef.current = field;
-        setCam(prepCam.kind, prepCam.opts);
+        setCam(prepCam.kind, ownPrepOpts);
         prepCamSeen.current = prepCamKey;
         viewModeRef.current = 'prep';
         lastFieldRef.current = null;
@@ -520,8 +524,19 @@ function MatchScreen() {
     if (!view || viewModeRef.current !== 'prep' || !showPrep) return;
     if (live.current.facing) cancelFacingRef.current();
     setSel(null);
-    setCam(prepCam.kind, prepCam.opts);
+    setCam(prepCam.kind, ownPrepOpts);
   }, [view, prepCamKey, showPrep]);
+
+  // collapsing / expanding the shop bar on a touch screen re-frames the own board (not a scouted one, not the pen)
+  const shopCamRef = useRef(collapsed);
+  useEffect(() => {
+    if (shopCamRef.current === collapsed) return;
+    shopCamRef.current = collapsed;
+    if (!view || !touchUi || viewModeRef.current !== 'prep' || !showPrep || penRef.current.on) return;
+    const c = camRef.current;
+    if (c.kind !== prepCam.kind || c.opts?.side !== prepCam.opts.side || (c.opts?.shop === false) === (ownPrepOpts.shop === false)) return;
+    setCam(prepCam.kind, ownPrepOpts);
+  }, [view, collapsed, showPrep]);
 
   // 联防 / 最终攻势: the ‹ › pill moves the camera between the field's halves and 全景 (research 09 §3.1)
   useEffect(() => {

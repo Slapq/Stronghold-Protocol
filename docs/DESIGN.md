@@ -1103,3 +1103,43 @@ In SETTLE it is the field the last battle left on screen. In prep without watchi
 - Measured in a 4-AI NORMAL harness match (seed 11, round 13, 3 players eliminated): `players[].bonds` is 771 B, against 2424 B without this rule. The review measured 705 B on v2.5.1; the difference is the living player's layers-only entries, which the strip needs.
 - There is no new message and no new field. `m.public` stays throttled and deduplicated, so the extra traffic is the living players' layers-only entries plus one change at the end of COMBAT.
 - Nothing is exposed that scouting (research 09 §3.1) or watching the battle does not already show.
+
+### 20.16 Phones: pieces big enough to tap (user report 2026-10-06) — `render/projection.js clearHud`, `ui/fieldHost.js hudBands`, `screens/game.js ownPrepOpts`, `render/app.js` (pinch, battle taps), `render/pick.js pickBody`
+
+The report: "根本点不到干员。整个棋盘位于中间位置，缩放过小". Browsers tested: Safari on iPhone, plus Chrome and Firefox on Android.
+
+**Cause.** The HUD is sized in rem with the 40 px floor (§19.8). A phone in landscape with the browser's bars showing is about 300 CSS px tall (780×300). There the HUD takes 86 px at the top and 109 px at the bottom. `clearHud` zoomed the prep camera out until the bench-to-back-row band fitted the remaining 105 px. That was ×0.6 of the official framing, so pieces were about 15 px.
+
+**Now, on touch screens only** (`html.sp-coarse`; desktop framing is unchanged):
+
+- **Zoom floor.** `hudBands` adds `minZoom: 1`, so `clearHud` never zooms the board out below the official framing.
+  - The bench's near edge stays 1 px above the shop bar.
+  - The back rows may go under the top HUD. They show when the shop is collapsed, or after a pinch.
+  - At 780×300 the pieces are about 2× bigger than before.
+- **Collapsed shop.** Collapsing the shop bar re-frames the own board with the official prepare camera (`shop: false`, `left_prepare_camera_param`), as the client does.
+  - The bottom band keeps the bench above the bottom-left corner's buttons (交流 ⚙ 📖 ⛶, measured; two rows under 768 px) and at least `HUD_REM.shopTabTop` (.2rem) off the edge. The collapsed tab sits in the bottom-right corner.
+  - Expanding the bar goes back to the shop camera.
+  - A scouted board and the enemy pen are not re-framed.
+- **Pinch zoom and pan.** A second finger on the field starts a pinch. The gesture is an image transform of the camera (focal length × z, the principal point moved), like `clearHud`. Picking, the three.js board and every layer therefore stay consistent.
+  - Zoom range is 1× to `USER_ZOOM_MAX` 3×.
+  - The point under the fingers stays under them.
+  - The pan reaches `USER_PAN_SLACK` (30 %) of the viewport past the framing.
+  - A piece being pressed or dragged goes home.
+  - No finger counts again until all have lifted.
+  - Any new camera request or resize resets the view.
+- **Taps in battle.** A touch picks a unit on release, within `TAP_SLOP_PX` 12. The first finger of a pinch therefore opens nothing. The mouse still picks on press.
+- **A finger on an empty tile** picks the unit whose drawn body it is on (`pickBody`).
+  - The body is an upright box `BODY_HALF_W` 0.4 tile either side of the feet, from the feet to the head. The front-most unit wins.
+  - This applies to prep pieces and battle allies.
+  - A unit on the pressed tile always wins, so §17.2's tile rule stays the rule. The mouse keeps it strictly.
+
+Tests:
+- `test/render/projection.test.js`: the zoom floor.
+- `test/ui/playtest5-ui.test.js`: touch bands and the collapsed tab.
+- `test/render/pick.test.js`: `pickBody`.
+
+[ASSUMED]:
+- The 3× zoom limit.
+- The 30 % pan reach.
+- The 0.4-tile body box.
+- The official framing as the floor, rather than a minimum tile size in px.
