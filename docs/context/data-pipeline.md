@@ -74,7 +74,7 @@ diff <(jq -S . data/X.json) <(jq -S . $OUT/X.json) | head      # semantic diff (
 ```
 In-place alternative on a clean tree: `npm run build-data -- --quiet && git status --short data/` (empty = identical). Always commit data/ with the code that changed it.
 Cache contents (measured): `excel/{activity,character,skill,range,uniequip,battle_equip,enemy_handbook}_table.json` + `levels/enemydata/enemy_database.json` + 44 files `levels/activities/act1autochess/level_*.json` + 6 files `.../act2autochess/` (h07_05, h07_05_s, m01-m04) = 58 files, 71 MB.
-Current-data build log: 9 warnings, all expected: 8 x "token ... of skill ... is not listed by the character" (waiguan demetr_3, ebnhlz_2, aglna2_3, cqbw_2, normal+elite) and 1 stage-name annotation drop (act1autochess_m01). A new warning = investigate.
+Current-data build log: 1 warning, expected: the stage-name annotation drop (act1autochess_m01). (The 8 "token ... of skill ... is not listed by the character" warnings are gone: every selectable skill's summon is now a token of its chess, `sources` [] + `bySkill[i].sources` ["skill"].) A new warning = investigate.
 
 ## 4. Inputs
 
@@ -114,7 +114,7 @@ Current-data build log: 9 warnings, all expected: 8 x "token ... of skill ... is
 | stages | B | map of 11 stage ids (`act1autochess_m01..m07`, `act2autochess_m01..m04`); 8 active (`weight>0`) |
 | choices | B | `{events, families, format, cards{bounty,tactic}, bountyDrafts, shopDraft, tacticDraft, schedule, pools}` |
 | factions | B | `{templateSlots, types, entries(67), generation}` |
-| tokens | B | map tokenId -> token (57: 54 summon, 1 bondSummon `enemy_9012_acloon`, 2 mapChar) |
+| tokens | B | map tokenId -> token (61: 58 summon, 1 bondSummon `enemy_9012_acloon`, 2 mapChar); `deployLimit` = maxDeployCount + the summon's talent `max_deploy_count` (外援 only) |
 | waiguan | B | `{candidates[87], chess{174 tier VI}, chessT5{174 overlays}}` |
 | assets | tools/fetch-assets.mjs | `{version, hash, generator, stats, chars, enemies, tokens, bonds, items, bands, skills, skillsById, ui, prof, audio, fonts}` (docs/ASSETS.md); never shrinks without `--allow-shrink` |
 | emotes | tools/build-emotes.mjs | `{version, source, chatCD, chatTime, themes[6], emotes[36]}` from display_meta_table + activity_table |

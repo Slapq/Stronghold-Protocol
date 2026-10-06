@@ -105,7 +105,7 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;11. `waves.json` — `{ [templateId]: Wave }` (38 templates) | 386–410 | 3.0 KB |
 | &nbsp;&nbsp;12. `stages.json` — `{ [stageId]: Stage }` (11 terrains, 8 active) | 411–446 | 6.3 KB |
 | &nbsp;&nbsp;13. `bosses.json` — `{ [bossId]: Boss }` (10; boss_8–10 hidden) | 447–459 | 1.5 KB |
-| &nbsp;&nbsp;14. `tokens.json` — `{ [tokenId]: Token }` (57) | 460–485 | 4.9 KB |
+| &nbsp;&nbsp;14. `tokens.json` — `{ [tokenId]: Token }` (61) | 460–485 | 5.5 KB |
 | &nbsp;&nbsp;14b. `waiguan.json` — `{ candidates, chess, chessT5 }` — 外援 / 甄选 (DIY) roster | 486–541 | 5.8 KB |
 | &nbsp;&nbsp;15. Anomalies found while joining (also in `.cache/build-data-report.json`) | 542–601 | 6.3 KB |
 | &nbsp;&nbsp;16. Counts (current build) | 602–607 | 491 B |
