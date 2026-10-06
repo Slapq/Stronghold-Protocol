@@ -50,9 +50,10 @@ Every brief opens with **"Facts agents get wrong"** — read that table before c
   `kit.skill` (default skill only) → generic. Talents/trait/install come only from a hand kit (`generic` has `talents: []`).
 - **Stat stacking**: ATK% from all sources is summed (`atkPct`), only `*Mul` keys multiply; one buff instance per key.
 - **Elite = golden = `_a` → `_b`**; merges use `goldenIdOf`, not `upgradeChessId` (that field is for items).
-- **外援 / 甄选 (DIY)**: 87 candidates live only in `data/waiguan.json` (never in chess.json); tier V records are 9-field
-  overlays of tier VI (`shared/waiguan.js waiguanRecords`); a pick is a pool entry owned by its player (`pool.addOwned`) and
-  only rolls when `playerId` is passed.
+- **外援 / 甄选 (DIY)**: 87 candidates live only in `data/waiguan.json` (never in chess.json); tier V records are overlays
+  of tier VI (9 tier fields; an elite adds its module-level fields: 模组 level 1 at tier V, 3 at tier VI) — always rebuild
+  them with `shared/waiguan.js waiguanRecords`; a pick is a pool entry owned by its player (`pool.addOwned`) and only rolls
+  when `playerId` is passed.
 - **`data/*.json` are generated** (except `tuning.json`): never hand-edit — change the cause, regenerate, commit both. They are
   one-line JSON: diff with `jq -S`. CI has no `.cache/gamedata`, so it cannot catch stale data.
 - **Anything bundled into the engines (server/sim, server/match, data, shared) changes the rules version**; a CI/Workers deploy
@@ -105,7 +106,7 @@ node tools/kit-coverage.mjs --missing    # which selectable skills lack a hand-a
   non-existent `PHASE.BAND_CHECK`, checkpoints do not log `setPicks`, bot 甄选 filters read missing fields, the browser's
   in-match chess lookup lacks 外援 records, picks not synced to accounts.
 - 外援 kits: being hand-authored one file per operator (`server/sim/content/kits/waiguan/`); the rest still run generic skills
-  and no talents. Modules: tier VI elites carry them (85/87 active, level 3), but tier V elites wrongly carry level 3 instead
-  of 1 (wrong stats/talents/module choices) and normal records lack the inactive `module` stub the pool has.
+  and no talents. Modules: every 外援 elite carries its operator's modules at its slot's level (85/87 active; tier V level 1,
+  tier VI level 3; fixed 2026-10-06, the tier V elites used to carry level 3); kits must read module numbers from the record.
 - Stale docs: DESIGN.md §2 client file list, DATA.md:3 (not all data is from build-data), asset counts in ASSETS.md,
   `docs/CONTENT.md` referenced by server/sim/content/support/index.js does not exist.

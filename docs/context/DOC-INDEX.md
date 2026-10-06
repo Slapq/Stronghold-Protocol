@@ -81,11 +81,11 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;运行日志 | 80–98 | 2.5 KB |
 | &nbsp;&nbsp;验证 | 99–112 | 841 B |
 
-## DATA.md (86 KB, 627 lines)
+## DATA.md (88 KB, 638 lines)
 
 | Section | Lines | Size |
 |---|---|---|
-| DATA.md — generated game data (`data/*.json`) | 1–627 | 86 KB |
+| DATA.md — generated game data (`data/*.json`) | 1–638 | 88 KB |
 | &nbsp;&nbsp;0. Conventions used by every file | 33–47 | 1.8 KB |
 | &nbsp;&nbsp;1. `config.json` — modes, economy and all global tunables | 48–138 | 11 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;1.1 `modes[modeId]` (9 modes; `modeId = mode_${single\|multi}_${difficulty}` + `mode_training_1`) | 52–92 | 4.3 KB |
@@ -106,10 +106,10 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;12. `stages.json` — `{ [stageId]: Stage }` (11 terrains, 8 active) | 411–446 | 6.3 KB |
 | &nbsp;&nbsp;13. `bosses.json` — `{ [bossId]: Boss }` (10; boss_8–10 hidden) | 447–459 | 1.5 KB |
 | &nbsp;&nbsp;14. `tokens.json` — `{ [tokenId]: Token }` (57) | 460–485 | 4.9 KB |
-| &nbsp;&nbsp;14b. `waiguan.json` — `{ candidates, chess, chessT5 }` — 外援 / 甄选 (DIY) roster | 486–541 | 5.8 KB |
-| &nbsp;&nbsp;15. Anomalies found while joining (also in `.cache/build-data-report.json`) | 542–601 | 6.3 KB |
-| &nbsp;&nbsp;16. Counts (current build) | 602–607 | 491 B |
-| &nbsp;&nbsp;17. Integrity guarantees (checked by the builder and `test/data.test.js`) | 608–627 | 2.1 KB |
+| &nbsp;&nbsp;14b. `waiguan.json` — `{ candidates, chess, chessT5 }` — 外援 / 甄选 (DIY) roster | 486–552 | 7.5 KB |
+| &nbsp;&nbsp;15. Anomalies found while joining (also in `.cache/build-data-report.json`) | 553–612 | 6.3 KB |
+| &nbsp;&nbsp;16. Counts (current build) | 613–618 | 520 B |
+| &nbsp;&nbsp;17. Integrity guarantees (checked by the builder and `test/data.test.js`) | 619–638 | 2.1 KB |
 
 ## DEPLOY.md (18 KB, 261 lines)
 
@@ -133,11 +133,11 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;5. 排错 | 233–246 | 2.3 KB |
 | &nbsp;&nbsp;6. 本地客户端素材（可选） | 247–261 | 2.0 KB |
 
-## DESIGN.md (697 KB, 2386 lines)
+## DESIGN.md (698 KB, 2387 lines)
 
 | Section | Lines | Size |
 |---|---|---|
-| 卫戍协议：盟约 — Web Remake · Architecture & Contracts (DESIGN.md) | 1–2386 | 697 KB |
+| 卫戍协议：盟约 — Web Remake · Architecture & Contracts (DESIGN.md) | 1–2387 | 698 KB |
 | &nbsp;&nbsp;0. Product scope (v1) | 11–27 | 2.0 KB |
 | &nbsp;&nbsp;1. Tech stack | 28–39 | 1.2 KB |
 | &nbsp;&nbsp;2. Repository layout & ownership | 40–124 | 6.5 KB |
@@ -315,10 +315,10 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;&nbsp;&nbsp;26.5 Phone keyboards — `ui/components.js TextField` | 2269–2275 | 312 B |
 | &nbsp;&nbsp;&nbsp;&nbsp;26.6 Screen awake, sound with the silent switch, locked rotation, graphics default, frame cap — `ui/device.js keepScreenAwake / useWakeLock / isPhone`, `audio.js _playbackSession`, `index.html` + `css/theme.css .rotate-hint__fs`, `ui/gameLogic.js defaultQuality`, `ui/settings.js`, `render/app.js MAX_FPS` | 2276–2289 | 1.3 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;26.7 Not done here (from the audit) | 2290–2308 | 649 B |
-| &nbsp;&nbsp;27. 外援 / 甄选 (DIY) slots (remake addition) | 2309–2341 | 7.3 KB |
-| &nbsp;&nbsp;28. 匹配 (matchmaking queue) — a remake addition | 2342–2386 | 7.7 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;28.1 The Node server's queue — `server/lobby.js`, `shared/protocol.js`, `public/js/screens/lobby.js` / `room.js` | 2348–2370 | 3.6 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;28.2 匹配 in the room Worker (account mode) — `worker/matchmaker.js`, `worker/rooms/queue-routes.js`, `public/js/room-net.js` | 2371–2386 | 3.8 KB |
+| &nbsp;&nbsp;27. 外援 / 甄选 (DIY) slots (remake addition) | 2309–2342 | 8.4 KB |
+| &nbsp;&nbsp;28. 匹配 (matchmaking queue) — a remake addition | 2343–2387 | 7.7 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;28.1 The Node server's queue — `server/lobby.js`, `shared/protocol.js`, `public/js/screens/lobby.js` / `room.js` | 2349–2371 | 3.6 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;28.2 匹配 in the room Worker (account mode) — `worker/matchmaker.js`, `worker/rooms/queue-routes.js`, `public/js/room-net.js` | 2372–2387 | 3.8 KB |
 
 ## META.md (85 KB, 840 lines)
 
