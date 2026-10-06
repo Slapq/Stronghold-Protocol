@@ -8,6 +8,9 @@ const mib = n => `${(n / 1048576).toFixed(1)} MiB`;
 export function ResourceLauncher({ onOpen }) {
   const route = useStore(selectRoute);
   if (route === 'game') return null;
+  // on a touch screen the fixed button sat over the room's 开始模拟 / 准备就绪 and the loadout roster (topmost there:
+  // a tap on that corner opened this dialog — phone audit S4): the title and the lobby only
+  if (route !== 'title' && route !== 'lobby' && document.documentElement.classList.contains('sp-coarse')) return null;
   return html`<div class="resource-launcher">
     <${Button} id="resource-manager-open" size="sm" onClick=${onOpen}
       title="下载、导入、导出或清理本地游戏资源">资源管理<//>
