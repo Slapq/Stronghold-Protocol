@@ -1330,7 +1330,9 @@ function tokenVariant(ctx, tokenId, char, { phase, level, skillIndex, skillLevel
   // 部署数量上限 (PRTS 卫戍协议/帮助 "根据召唤物部署数量上限…发送等量召唤物至手牌区"): the phase's maxDeployCount + the
   // summon's own talent `max_deploy_count` (the hidden "TOKEN数+N" part: 令 / 麦哲伦 souls and drones 1 + 2 = "最多同时部署3个",
   // 白铁 1 + 1, 夜莺 幻影 1 + 2; a module may raise it — 令 SUM-Y 1 + 3). The largest one counts: a module restates the
-  // talent under another index (夜莺 OPS 幻影: both parts carry 2). No pool summon has such a talent.
+  // talent under another index (夜莺 OPS 幻影: both parts carry 2). No pool summon has such a talent. [ASSUMED] the PRTS
+  // rule names only "部署数量上限"; that the hidden part belongs to it follows the owners' texts ("最多同时部署3个"), the
+  // hand count (GameData.placeableTokens) is this limit — the deploy cap, not a consumable's per-battle stock.
   const deployBonus = talents.reduce((n, t) => Math.max(n, typeof t.bb?.max_deploy_count === 'number' ? t.bb.max_deploy_count : 0), 0);
   if (stats && deployBonus > 0) stats.deployLimit += deployBonus;
   return {
