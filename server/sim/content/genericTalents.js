@@ -349,7 +349,7 @@ const addMods = (a, b) => { for (const [k, v] of Object.entries(b)) a[k] = k.end
  * "获得N%的庇护", "无视…N点法术抗性/防御力", "受到的治疗量/效果+N%", "受到的(物理和法术)?伤害-N%", "造成的(物理|法术)?伤害
  * +N%", "受到的元素损伤降低N%", "每秒回复N生命 / N%的最大生命", "不容易成为敌人的攻击目标", "更容易受到攻击", "获得抵抗", "失重".
  */
-function statPhrase(p, V) {
+function statPhrase(p, V, ST = null) {
   let m = p.match(new RegExp(`^(?:自身(?:的)?)?${STAT_RE}((?:(?:和|与|、|及)${STAT_NC})*)(?:各)?(?:额外)?(?:([+-])${N}(%)?(?:\\/秒)?|(提升|提高|增加|下降|降低|减少)${N}(%)?(?:\\/秒)?)$`));
   if (m) {
     const words = [m[1], ...[...(m[2] || '').matchAll(new RegExp(STAT_RE, 'g'))].map((x) => x[1])];
@@ -417,9 +417,20 @@ function statPhrase(p, V) {
     const v = V.key('taunt_level');
     return { mods: { taunt: v !== undefined && v < 0 ? v : -1 } };
   }
-  if (/^(?:且)?更容易(?:受到(?:敌人的)?攻击|吸引敌人的攻击)$/.test(p)) {
+  if (/^(?:且|并且)?更容易(?:受到(?:敌人的)?(?:攻击|伤害)|吸引敌人的攻击)$/.test(p)) {
+    // a summon whose data already holds the higher 嘲讽等级 (夜莺's 幻影 tauntLevel 1) restates it
+    if (ST && ST.tauntLevel > 0) return { mods: {} };
     const v = V.key('taunt_level');
     return { mods: { taunt: v !== undefined && v > 0 ? v : 1 } };
+  }
+  // "拥有75法术抗性" (a summon's text restating its own data RES): only what the data lacks
+  if ((m = p.match(new RegExp(`^拥有${N}(?:点)?法术抗性$`)))) {
+    const n = +m[1];
+    return { mods: ST && ST.res >= n - EPS ? {} : { resFlat: n - (ST?.res ?? 0) } };
+  }
+  if ((m = p.match(new RegExp(`^(?:拥有)?${N}%的(物理|法术)闪避$`)))) {
+    const v = V.pct(+m[1]);
+    return v === undefined ? undefined : { mods: m[2] === '物理' ? { dodgePhys: v } : { dodgeArts: v } };
   }
   if (/^获得抵抗$/.test(p)) {
     const r = V.keyLike(/one_minus_status_resistance$/);
@@ -439,13 +450,13 @@ function statPhrase(p, V) {
 }
 
 /** A phrase list joined by 且 / 并 / 和 / ， → merged { mods, extra } (every part must parse), else undefined. */
-function statPhrases(p, V) {
-  const one = statPhrase(p, V);
+function statPhrases(p, V, ST = null) {
+  const one = statPhrase(p, V, ST);
   if (one) return one;
   for (const sep of ['且', '并且', '并', '以及', '和', '，']) {
     let at = p.indexOf(sep);
     while (at > 0) {
-      const a = statPhrases(p.slice(0, at), V), b = a && statPhrases(p.slice(at + sep.length), V);
+      const a = statPhrases(p.slice(0, at), V, ST), b = a && statPhrases(p.slice(at + sep.length), V, ST);
       if (a && b) return { mods: addMods({ ...a.mods }, b.mods), extra: { ...(a.extra || {}), ...(b.extra || {}) } };
       at = p.indexOf(sep, at + 1);
     }
@@ -463,6 +474,8 @@ function parseScope(c) {
     [/^(?:使)?自身(?:与|和|及)身后一格的友(?:军|方(?:单位|干员)?)/, () => ({ kind: 'allies', self: true, label: '自身+身后一格', select: (b, s, a) => keysAround(s, BEHIND).has(tileKey(a)) })],
     [/^(?:使)?自身(?:与|和|及)周围(?:8|八)格(?:内)?(?:的)?友方(?:干员|单位)/, () => ({ kind: 'allies', self: true, label: '自身+周围8格', select: (b, s, a) => keysAround(s, RING8).has(tileKey(a)) })],
     [/^(?:使)?自身(?:及|与|和)相邻(?:四|4)格的【(\S+?)】(?:职业)?干员/, (m) => ({ kind: 'allies', self: true, label: `自身+相邻${m[1]}`, select: (b, s, a) => isOp(a) && keysAround(s, N4).has(tileKey(a)) && classOk(a, m[1]) })],
+    [/^(?:使)?(?:前方|身前一格)(?:的)?(?:友方)?干员(?:的)?/, () => ({ kind: 'allies', self: false, label: '前方干员', select: (b, s, a) => isOp(a) && keysAround(s, FRONT).has(tileKey(a)) })],
+    [/^(?:使)?身后一格(?:的)?友方(?:干员|单位)(?:的)?/, () => ({ kind: 'allies', self: false, label: '身后一格', select: (b, s, a) => keysAround(s, BEHIND).has(tileKey(a)) })],
     [/^(?:使)?(?:相邻|周围(?:四|4)格)(?:四格)?的?(?:友方)?干员/, () => ({ kind: 'allies', self: false, label: '相邻干员', select: (b, s, a) => isOp(a) && keysAround(s, N4).has(tileKey(a)) })],
     [/^(?:使)?(?:相邻|周围(?:四|4)格)(?:四格)?的?友方单位/, () => ({ kind: 'allies', self: false, label: '相邻单位', select: (b, s, a) => keysAround(s, N4).has(tileKey(a)) })],
     [/^(?:\S{0,3}?)周围(?:8|八)格(?:内)?的(近战)?(?:友方)?(干员|单位)/, (m) => ({ kind: 'allies', self: false, geom: 'ring', label: '周围8格', select: (b, s, a) => (m[2] === '单位' || isOp(a)) && keysAround(s, RING8).has(tileKey(a)) && (!m[1] || a.def?.position === 'MELEE') })],
@@ -1020,7 +1033,7 @@ rule('F6.status', new RegExp(`^攻击(?:时)?(?:有${N}%(?:的)?(?:几率|概率
 rule('F6.debuff', new RegExp(`^(?:攻击|“?[^，]{1,6}?”?的攻击会)(?:使|令)(?:命中)?目标(?:在${N}秒内)?(?:的)?${STAT_RE}(?:下降|降低|-)${N}(%)?(?:，持续${N}秒)?(?:（最多叠加(\\d+|[一二三四五六七八九十])次）)?(?:且受到的(法术|物理)伤害提高${N}点)?$`), (m, P, ctx) => {
   const V = P.values;
   const mods = statMods(statKind(m[2]), -1, +m[3], !!m[4], V);
-  const d = +(m[1] ?? m[5] ?? 0);
+  const d = +(m[1] ?? m[5] ?? ctx.dur ?? 0);
   const stacks = m[6] ? cnNum(m[6]) : 1;
   const addTaken = m[8] ? V.flat(+m[8]) : 0;
   if (!mods || !(d > 0) || addTaken === undefined) return null;
@@ -1694,6 +1707,87 @@ rule('X.firstDeployCost', new RegExp(`^首次部署时部署费用-${N}$`), () =
 rule('X.costFloor', new RegExp(`^部署费用下限降低${N}$`), () => ({ effects: [], dropped: ['部署费用下限 (no deploy-cost floor in the battle engine)'] }));
 rule('X.flag', /^部署时自身持有军旗$/, () => ({ effects: [] }));
 
+// ---- summons (token mode) -----------------------------------------------------------------------------------------
+// "被击倒后（不包括撤退）使周围8格内所有敌人晕眩N秒并对其造成M点真实伤害" (Mon3tr 不毁重构; elite "生命值首次低于50%和…")
+rule('F10.deathBurst', new RegExp(`^(?:在?生命值首次低于${N}%和)?被击倒后（不包括撤退）使周围(?:8|八)格内所有敌人晕眩${N}秒并对其造成${N}点(真实|物理|法术)伤害$`), (m, P) => {
+  const V = P.values;
+  const firstBelow = m[1] ? (V.pct(+m[1]) ?? +m[1] / 100) : null;
+  const st = V.flat(+m[2]) ?? +m[2], dmg = V.flat(+m[3]) ?? +m[3];
+  const type = dmgTypeOf(m[4]);
+  const burst = (battle, unit) => {
+    for (const e of battle.foesInRadius(unit.x, unit.y, 1.5)) {
+      battle.applyStatus(e, 'stun', { duration: st, source: unit });
+      if (hasHp(e)) battle.dealDamage(unit, e, { amount: dmg, type, canDodge: false, tags: ['talent', 'burst'] });
+    }
+    battle.fx('aoe', { x: unit.x, y: unit.y, radius: 1.5, id: unit.id });
+  };
+  return { effects: [E('F10.deathBurst', `被击倒时周围晕眩${st}s + ${dmg}${type}${firstBelow ? ` (+首次<${firstBelow})` : ''}`, (battle, unit) => {
+    battle.on('death', (c) => { if (c.unit === unit && c.reason === 'killed') burst(battle, unit); }, { owner: unit, priority: 20 });
+    if (firstBelow) {
+      battle.on('damaged', (c) => {
+        if (c.target !== unit || !unit.alive || unit.mem.gtBurstSeq === unit.deploySeq || unit.hpRatio >= firstBelow) return;
+        unit.mem.gtBurstSeq = unit.deploySeq;
+        burst(battle, unit);
+      }, { owner: unit });
+    }
+  })] };
+});
+// "不在X攻击范围内时防御力降至0" (Mon3tr): DEF ×0 while the summon stands outside its owner's range (or the owner is down)
+rule('F2.outsideOwner', /^(?:[^，]{0,6}?)不在[^，]{1,8}?攻击范围内时防御力降至0$/, (m, P, ctx) => {
+  if (!P.token) return null;
+  const key = effKey(P, ctx.j());
+  return { effects: [E('F2.outsideOwner', '召唤者攻击范围外防御力0', (battle, unit) => {
+    toggle(battle, unit, key, () => { const o = unit.ownerUnit; return !(up(o) && rangeSet(o).has(tileKey(unit))); }, { defMul: 0 });
+  })] };
+});
+rule('X.healedBy', /^可以被[^，]{1,8}?治疗$/, (m, P) => (P.token ? { effects: [] } : null));
+// "(同时)?每秒流失N%的最大生命" (夜莺's 幻影): a lethal drain — the summon's lifetime
+rule('F3.tokenDrain', new RegExp(`^(?:同时)?每秒流失${N}%的最大生命(?:值)?$`), (m, P) => {
+  const r = P.values.pct(+m[1]);
+  if (r === undefined) return null;
+  return { effects: [E('F3.tokenDrain', `每秒流失${r}最大生命`, (battle, unit) => {
+    battle.every(1, () => { if (up(unit)) battle.loseHp(unit, unit.s.maxHp * r, { source: unit, silent: true }); }, { owner: unit });
+  })] };
+});
+// "攻击时会将目标(小|中等|大)力度地推开" (温蒂's 蓄水炮)
+rule('F6.push', /^攻击时会将目标(微小|小|中等|较大|大)力度地推开$/, (m) => {
+  const force = { 微小: -1, 小: 0, 中等: 1, 较大: 2, 大: 3 }[m[1]];
+  return { effects: [E('F6.push', `攻击推开 力度${force}`, (battle, unit) => {
+    battle.on('damaged', (c) => {
+      if (c.source !== unit || !isMainHit(c.dmg) || !hasHp(c.target) || c.target.side !== 'enemy') return;
+      battle.push(c.target, force, { from: unit });
+    }, { owner: unit });
+  })] };
+});
+// "部署后持续N秒" / "…，持续N秒" of a summon: its lifetime is content/tokens.js's (generic summons), marked here
+rule('X.lifetime', new RegExp(`^(?:部署后)?持续${N}秒$`), (m, P) => (P.token ? { effects: [E('X.lifetime', `持续${m[1]}s (tokens.js)`, () => {})] } : null));
+// "在X周围4格内时令其每N秒获得M点技力" (温蒂's 蓄水炮): the owner gains SP while its summon stands next to it
+rule('F9.nearOwnerSp', new RegExp(`^(?:且)?在[^，]{1,8}?周围(?:4|四)格内时令其每${N}秒获得${N}点技力$`), (m, P) => {
+  const V = P.values;
+  const iv = V.flat(+m[1]) ?? +m[1], sp = V.flat(+m[2]) ?? +m[2];
+  if (!P.token) return null;
+  return { effects: [E('F9.nearOwnerSp', `召唤者在周围4格时每${iv}s +${sp}SP`, (battle, unit) => {
+    battle.every(iv, () => {
+      const o = unit.ownerUnit;
+      if (up(unit) && up(o) && manh(unit, o) <= 1) giveSp(o, sp);
+    }, { owner: unit });
+  })] };
+});
+// "使攻击范围内一名友方干员的STAT(，持续时间无限)" (白铁's 平台): the operator in range with the highest ATK [ASSUMED]
+rule('F7.oneAlly', /^使攻击范围内一名友方干员(?:的)?([^，]+?)(?:，持续时间无限)?$/, (m, P, ctx) => {
+  const sp = statPhrases(m[1], P.values);
+  if (!sp) return null;
+  const key = effKey(P, ctx.j());
+  return { effects: [E('F7.oneAlly', `范围内一名干员 ${JSON.stringify(sp.mods)}`, (battle, unit) => {
+    battle.every(0.5, () => {
+      if (!up(unit)) return;
+      const set = rangeSet(unit);
+      const best = battle.alliesFor(unit).filter((a) => isOp(a) && set.has(tileKey(a))).sort((a, b) => b.s.atk - a.s.atk || a.deploySeq - b.deploySeq)[0];
+      if (best) battle.addBuff(best, { key, mods: sp.mods, duration: 0.6, source: unit, tags: ['talent', 'aura'] });
+    }, { owner: unit, immediate: true });
+  })] };
+});
+
 /** Try the specific rules at the start of `rest`. Returns { effects, dropped, consumed (clauses), more } or null. */
 function trySpecific(rest, P, ctx) {
   for (const r of RULES) {
@@ -1747,6 +1841,10 @@ function eventEffect(clause, P, cond, dur, j) {
       const total = Math.min(cap != null ? unit.s.maxHp * cap : Infinity, (cur ? cur.shield : 0) + add);
       if (cur) { cur.shield = Math.max(cur.shield, total); unit.markDirty(); } else battle.addBuff(unit, { key, shield: total, visible: true, source: unit, tags: ['talent', 'shield'], data: { selfShield: true } });
     }));
+  }
+  if ((m = clause.match(new RegExp(`^(?:进入)?隐匿(?:状态)?${N}秒$`)))) {
+    const d = V.flat(+m[1]) ?? +m[1];
+    return E('F10.stealth', `${cond.label} 隐匿${d}s`, (battle, unit) => hook(battle, unit, () => battle.applyStatus(unit, 'stealth', { duration: d, source: unit })));
   }
   if ((m = clause.match(/^(?:立即)?获得(\d+|[一二三四五])层护盾$/))) {
     const n = cnNum(m[1]);
@@ -1887,6 +1985,7 @@ export function parseTalentText(text, P) {
     let dur = 0;
     const dm = sent.match(new RegExp(`，持续${N}秒(?:（(?:不可|无法)叠加）)?$`));
     if (dm && !/^攻击/.test(sent) && !/每秒受到/.test(sent) && !/造成治疗时/.test(sent)) { dur = P.values.flat(+dm[1]) ?? +dm[1]; sent = sent.slice(0, -dm[0].length); }
+    sent = sent.replace(/，持续时间无限$/, '');
     const clauses = sent.split('，').filter(Boolean);
     // a stacking / scaling sentence ("最多叠加3次", "每有…", "越低…越强") is never a plain stat: its stat clauses are
     // only applied through a rule that models the stacking
@@ -1914,7 +2013,7 @@ export function parseTalentText(text, P) {
         for (let k = i + 1; k < clauses.length; k++) dropped.push({ clause: clauses[k], reason: 'summon subject (content/tokens.js generic summons)' });
         break;
       }
-      const ctx = { cond, j: nextJ };
+      const ctx = { cond, j: nextJ, dur };
       let r = trySpecific(clauses.slice(i).join('，'), P, ctx);
       if (r) {
         effects.push(...r.effects);
@@ -1938,7 +2037,7 @@ export function parseTalentText(text, P) {
         }
         c = pc.rest;
         if (!c) { i++; continue; }
-        r = trySpecific([c, ...clauses.slice(i + 1)].join('，'), P, { cond, j: nextJ });
+        r = trySpecific([c, ...clauses.slice(i + 1)].join('，'), P, { cond, j: nextJ, dur });
         if (r) {
           effects.push(...r.effects);
           for (const d of r.dropped || []) dropped.push({ clause: d, reason: `${r.rule}: unparsed part` });
@@ -2004,7 +2103,7 @@ export function parseTalentText(text, P) {
         c = ps.rest;
       }
       if (ps && ps.scope.kind !== 'self' && !ps.scope.inherit && !ps.scope.inheritAlly) scope = { ...sc };
-      const sp = c ? statPhrases(c, P.values) : null;
+      const sp = c ? statPhrases(c, P.values, P.stats) : null;
       if (sp && scaling) { dropped.push({ clause: clauses[i], reason: 'stacked / scaled effect (no rule models it)' }); i++; continue; }
       if (sp && dur > 0 && (!cond || cond.kind === 'state')) { dropped.push({ clause: clauses[i], reason: `timed effect (${dur}s) without a recognised trigger` }); i++; continue; }
       if (sp) {
@@ -2053,6 +2152,8 @@ function textSources(def) {
   talents.forEach((t, i) => {
     const text = String(t?.description ?? t?.desc ?? '').trim();
     if (!text || text === '-' || text === 'null' || /^在【[^】]+】中/.test(text)) return;
+    // a module part that restates a named talent under another index (a summon's 转瞬即逝的幻影 twice): the later one wins
+    if (t.name && talents.slice(i + 1).some((x) => x && x.name === t.name && String(x.description ?? x.desc ?? '').trim())) return;
     out.push({ srcTag: `t${i}`, index: i, text, bb: t.bb || {}, talent: t });
   });
   const raw = def?.raw;
@@ -2088,6 +2189,7 @@ function parseSource(def, s, token) {
     token: !!token,
     tokenNames: tokenNamesOf(def),
     module: !!s.module,
+    stats: token || def?.type === 'token' ? def?.stats ?? null : null,
   };
   return parseTalentText(s.text, P);
 }
