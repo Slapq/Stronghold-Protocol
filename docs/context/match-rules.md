@@ -144,17 +144,17 @@ Scope: the authoritative match engine: phases, rounds, drafts, shop/pool/merges,
 - **Pool entry** `{ cap, left, tier, owner }`. The invariant is left + Σ held copies == cap. `piece.poolCopies` records exactly what each piece holds, and sell, elimination and temp resolution return it (pool.js:1-15; PlayerState.js:395).
 - **Copies**: tiers 1–6 = 12 / 14 / 18 / 16 / 8 / 5; 缪尔赛思 (`chess_char_6_11_a`) 4; ceil(×n/4) for 5–8 seats, sized once at the start (gamedata.js:27, :342-356).
 - **Bans** (`drawDisabledBonds` pool.js:27): FUNNY draws 0 core + 1 add-on bond; NORMAL / HARD / ABYSS draw 3 + 4. A chess is banned iff every one of its bonds is drawn or mode-inactive. The FUNNY modes switch 10 bonds off statically (data `inactiveBondIds`).
-- **`addOwned(owner, baseId, cap)`** (pool.js:82): a private entry, fixed at 8 copies (tier V) or 5 (tier VI) (`WAIGUAN_POOL_COPIES` shared/waiguan.js:34), never scaled. `has` / `left` / `roll` respect the owner only when a `playerId` is passed (pool.js:94-158; see section 1, item 3).
+- **`addOwned(owner, baseId, cap)`** (pool.js:82): a private entry, fixed at 8 copies (tier V) or 5 (tier VI) (`WAIGUAN_POOL_COPIES` shared/waiguan.js:45), never scaled. `has` / `left` / `roll` respect the owner only when a `playerId` is passed (pool.js:94-158; see section 1, item 3).
 - **GameData** (gamedata.js:75): own-property lookups that return null and never throw: `chess` / `item` / `bond` / `band` / `token` / `enemy` / `boss` (:244-254). It sits on `data/config.json` with defaults for missing keys (header :1-5, DEFAULTS :21). `visibleChess` excludes golden, DIY and hidden chess (:96-100). `addChess` adds a 甄选 record to this match only (:127). `placeableTokens(chessId, loadout)` (:606). `isLargeRoom` / `largeRoomFactor` (:201-213).
 
 ## 7. 外援 / 甄选 (shared/waiguan.js, DESIGN §27 :2309)
 
-- Four slots: `diy5a`, `diy5b` (tier V) and `diy6a`, `diy6b` (tier VI) (waiguan.js:22-27). Empty templates `chess_char_{5,6}_diy{1,2}_a/_b` sit in data/chess.json and are never shop-reachable.
-- Candidates are the 6★ operators outside the shop pool: 87 in data/waiguan.json. That file holds the full tier VI records plus tier V overlays of 9 fields, rebuilt by `waiguanRecords` (waiguan.js:45-66). `isWaiguanRecord` tells a real pick from a template (:95).
+- Four slots: `diy5a`, `diy5b` (tier V) and `diy6a`, `diy6b` (tier VI) (waiguan.js:33-38). Empty templates `chess_char_{5,6}_diy{1,2}_a/_b` sit in data/chess.json and are never shop-reachable.
+- Candidates are the 6★ operators outside the shop pool: 87 in data/waiguan.json. That file holds the full tier VI records plus tier V overlays (9 tier fields; an elite adds the module-level fields: its slot is 模组 level 1 at tier V, 3 at tier VI), rebuilt by `waiguanRecords` (waiguan.js:56-78). `isWaiguanRecord` tells a real pick from a template (:107).
 - Flow:
   1. `room.pick` → `checkWaiguanPicks` (shared/protocol.js:110: a known slot and a real candidate, never one operator in both slots of one tier).
   2. The pick is stored on the session and seat (lobby.js:922-945). `startMatch` passes `seats[].picks` (humans only, lobby.js:959).
-  3. `Match` merges only the picked records into this match's GameData (Match.js:349-357) and adds owner pool entries (:446-475). Bots get `botWaiguanPicks` (:291).
+  3. `Match` merges only the picked records into this match's GameData (Match.js:349-357) and adds owner pool entries (:446-475). Bots get `botWaiguanPicks` (:291). Both the normal piece and its elite are merged (`waiguanChessPatch`), so picks merge and a loadout naming a 外援 module is accepted (`test/match/waiguan.test.js`, `test/match/waiguan-modules.test.js`).
   4. `setPicks` later: section 1, item 2. `releaseWaiguanCopies` returns copies when a slot changes (:647).
 - Loadout: a 甄选 chess is a valid loadout target, widened by the player's own picks (`waiguanChessOf` lobby.js:160, used at :893).
 
