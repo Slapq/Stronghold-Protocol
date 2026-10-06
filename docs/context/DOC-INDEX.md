@@ -12,7 +12,7 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;登录方式与博士代号 | 5–14 | 4.8 KB |
 | &nbsp;&nbsp;在线大厅与加入申请 | 15–20 | 1.2 KB |
 | &nbsp;&nbsp;管理员重置密码 | 21–33 | 996 B |
-| &nbsp;&nbsp;账号偏好与跨设备同步 | 34–43 | 1.5 KB |
+| &nbsp;&nbsp;账号偏好与跨设备同步 | 34–43 | 1.7 KB |
 | &nbsp;&nbsp;配置与首次发布 | 44–54 | 2.5 KB |
 | &nbsp;&nbsp;持久化与统计口径 | 55–71 | 2.3 KB |
 | &nbsp;&nbsp;回放压缩 | 72–88 | 1.7 KB |
@@ -133,11 +133,11 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;5. 排错 | 233–246 | 2.3 KB |
 | &nbsp;&nbsp;6. 本地客户端素材（可选） | 247–261 | 2.0 KB |
 
-## DESIGN.md (697 KB, 2386 lines)
+## DESIGN.md (701 KB, 2386 lines)
 
 | Section | Lines | Size |
 |---|---|---|
-| 卫戍协议：盟约 — Web Remake · Architecture & Contracts (DESIGN.md) | 1–2386 | 697 KB |
+| 卫戍协议：盟约 — Web Remake · Architecture & Contracts (DESIGN.md) | 1–2386 | 701 KB |
 | &nbsp;&nbsp;0. Product scope (v1) | 11–27 | 2.0 KB |
 | &nbsp;&nbsp;1. Tech stack | 28–39 | 1.2 KB |
 | &nbsp;&nbsp;2. Repository layout & ownership | 40–124 | 6.5 KB |
@@ -315,7 +315,7 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;&nbsp;&nbsp;26.5 Phone keyboards — `ui/components.js TextField` | 2269–2275 | 312 B |
 | &nbsp;&nbsp;&nbsp;&nbsp;26.6 Screen awake, sound with the silent switch, locked rotation, graphics default, frame cap — `ui/device.js keepScreenAwake / useWakeLock / isPhone`, `audio.js _playbackSession`, `index.html` + `css/theme.css .rotate-hint__fs`, `ui/gameLogic.js defaultQuality`, `ui/settings.js`, `render/app.js MAX_FPS` | 2276–2289 | 1.3 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;26.7 Not done here (from the audit) | 2290–2308 | 649 B |
-| &nbsp;&nbsp;27. 外援 / 甄选 (DIY) slots (remake addition) | 2309–2341 | 7.3 KB |
+| &nbsp;&nbsp;27. 外援 / 甄选 (DIY) slots (remake addition) | 2309–2341 | 11 KB |
 | &nbsp;&nbsp;28. 匹配 (matchmaking queue) — a remake addition | 2342–2386 | 7.7 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;28.1 The Node server's queue — `server/lobby.js`, `shared/protocol.js`, `public/js/screens/lobby.js` / `room.js` | 2348–2370 | 3.6 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;28.2 匹配 in the room Worker (account mode) — `worker/matchmaker.js`, `worker/rooms/queue-routes.js`, `public/js/room-net.js` | 2371–2386 | 3.8 KB |
@@ -362,7 +362,7 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;9. 结算称号 | 126–129 | 631 B |
 | &nbsp;&nbsp;10. 小技巧 | 130–143 | 2.0 KB |
 | &nbsp;&nbsp;11. 5–8 人同盟（本作扩展） | 144–169 | 4.5 KB |
-| &nbsp;&nbsp;12. 外援干员（甄选） | 170–182 | 2.7 KB |
+| &nbsp;&nbsp;12. 外援干员（甄选） | 170–182 | 3.1 KB |
 | &nbsp;&nbsp;13. 快速匹配 | 183–193 | 1.6 KB |
 
 ## SIM.md (140 KB, 1293 lines)

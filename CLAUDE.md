@@ -50,9 +50,10 @@ Every brief opens with **"Facts agents get wrong"** — read that table before c
   `kit.skill` (default skill only) → generic. Talents/trait/install come only from a hand kit (`generic` has `talents: []`).
 - **Stat stacking**: ATK% from all sources is summed (`atkPct`), only `*Mul` keys multiply; one buff instance per key.
 - **Elite = golden = `_a` → `_b`**; merges use `goldenIdOf`, not `upgradeChessId` (that field is for items).
-- **外援 / 甄选 (DIY)**: 87 candidates live only in `data/waiguan.json` (never in chess.json); tier V records are 9-field
-  overlays of tier VI (`shared/waiguan.js waiguanRecords`); a pick is a pool entry owned by its player (`pool.addOwned`) and
-  only rolls when `playerId` is passed.
+- **外援 / 甄选 (DIY)**: 87 candidates live only in `data/waiguan.json` (never in chess.json); tier V records are overlays
+  of tier VI (`shared/waiguan.js waiguanRecords`); a pick is a private pool entry per owner (`pool.owned`) and only rolls
+  when `playerId` is passed (every player draw passes it); battle DataSources merge the records when their data includes
+  `waiguan` (`getDefaultSource()` does not).
 - **`data/*.json` are generated** (except `tuning.json`): never hand-edit — change the cause, regenerate, commit both. They are
   one-line JSON: diff with `jq -S`. CI has no `.cache/gamedata`, so it cannot catch stale data.
 - **Anything bundled into the engines (server/sim, server/match, data, shared) changes the rules version**; a CI/Workers deploy
@@ -99,11 +100,6 @@ node tools/kit-coverage.mjs --missing    # which selectable skills lack a hand-a
 
 ## Known open issues (keep this list current)
 
-- 外援 core bugs under repair on `claude/waiguan-complete`: no 外援 ever enters a battle (the battle DataSource — server
-  `Match.ds`, browser runner, Worker replay/recovery engines — lacks the waiguan records and `Battle` silently skips unknown
-  chess), picks never rolled in the owner's shop (PlayerState rolls without `playerId`), `Match.setPicks` checks a
-  non-existent `PHASE.BAND_CHECK`, checkpoints do not log `setPicks`, bot 甄选 filters read missing fields, the browser's
-  in-match chess lookup lacks 外援 records, picks not synced to accounts.
 - 外援 kits: being hand-authored one file per operator (`server/sim/content/kits/waiguan/`); the rest still run generic skills
   and no talents. Modules: tier VI elites carry them (85/87 active, level 3), but tier V elites wrongly carry level 3 instead
   of 1 (wrong stats/talents/module choices) and normal records lack the inactive `module` stub the pool has.

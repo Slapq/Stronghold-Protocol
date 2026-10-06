@@ -27,6 +27,7 @@ loadout). The engine deploys everything, auto-casts every skill by trigger rule,
 | "Summons cost DP / come only with the skill." | `spawnToken` never charges DP. A skill summon placed on the board deploys once, free, at the battle start (`SKILL_SUMMON_START_DEPLOY = true`). After that it is docked until the skill gives one. | Battle.js:1812-1839; shared/constants.js:87; tokens.js:290-345 |
 | "The server simulates every battle." | The default is client-side combat (`SP_COMBAT=server` = legacy). The browser runs `createBattleFromSpec` from the same spec. The server re-simulates on takeover or verification. | Match.js:180-181, 374, 2541-2601; public/js/battle/runner.js:730 |
 | "Time limits are real seconds." | Battle time is game seconds. The match passes the real `combatTimeLimit` × `combatTimeScale` (2). | gamedata.js:431-439 |
+| "外援 are not in battle data." | A `DataSource` whose data includes `waiguan` merges the 外援 records (tier V/VI, normal/elite): `Match.ds` (all match battles), the browser runner (`SIM_DATA_FILES` has `waiguan`), the Worker replay/recovery engines. `getDefaultSource()` stays the shop pool's (pool coverage tests). Before this fix `Battle` silently skipped them. | server/sim/simdata.js; public/js/battle/runner.js |
 | "Defs from `battle.data` can be tweaked." | They are deep-frozen and shared by every battle in the process. Copy them (`{...bb}`) first. | simdata.js:500-506, 553; SIM.md:1255 |
 
 ## 2. Where to look
