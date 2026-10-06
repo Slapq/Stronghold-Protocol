@@ -1143,3 +1143,24 @@ Tests:
 - The 30 % pan reach.
 - The 0.4-tile body box.
 - The official framing as the floor, rather than a minimum tile size in px.
+
+### 20.17 Phones: screen awake, sound with the silent switch, locked rotation, graphics default, 60 fps (phone audit 2026-10-06) — `ui/device.js keepScreenAwake / useWakeLock / isPhone`, `screens/game.js`, `screens/room.js`, `audio.js _playbackSession`, `index.html` + `css/theme.css .rotate-hint__fs`, `ui/gameLogic.js defaultQuality`, `ui/settings.js`, `render/app.js MAX_FPS`
+
+A phone audit (2026-10-06) found five things that spoil a match on a phone without being rule bugs. No protocol, simulation or layout change:
+
+- **The screen stays on (T2).** A battle is mostly watched, not touched, so the phone dimmed and locked mid-battle and the socket died with it.
+  - `keepScreenAwake()` asks `navigator.wakeLock.request('screen')`, and again on every `visibilitychange` back to visible (the browser releases the lock whenever the page hides). It never throws and never UA-sniffs: no `navigator.wakeLock` (an insecure context such as plain http on a LAN, older browsers) means it does nothing; a refusal (battery saver) is retried at the next return to the page. A request that resolves after the screen was left is released at once.
+  - `useWakeLock()` is mounted by `MatchScreen` (next to `sp-in-match`) and `RoomScreen`; leaving releases the lock.
+- **Sound with the silent switch (T5).** iOS 16.4+ Safari treats Web Audio as ambient, so the ring / silent switch muted the whole game. `AudioManager._unlock` sets `navigator.audioSession.type = 'playback'` before the context is created or resumed (try / catch; other browsers have no `audioSession`).
+- **A locked rotation is no dead end (T6).** The portrait hint (`index.html`, `css/theme.css`) gained a second line for a player whose rotation is locked: iPhone — turn off 竖屏方向锁定 in 控制中心; Android — turn on 自动旋转. Where the Fullscreen API exists (`html.sp-fs`: Android Chrome / Firefox, iPad) it also has a 全屏并横屏 button. `installDeviceSupport` handles its click, so `fullscreen.enter` runs inside the tap (a user gesture), and after entering locks landscape where the browser allows it. iPhone Safari has no element fullscreen: the button stays hidden and only the text shows.
+- **Graphics default 中 on a phone (P6).** `high` renders two full-screen WebGL canvases at resolution 2. `isPhone()` is a coarse pointer on a screen whose shorter side is under 500 CSS px (the screen, not the window; both sides, since iOS reports portrait sizes). `settings.js` passes `defaultQuality(isPhone())` to `sanitizeSettings` as the fallback for a missing or unknown quality; a saved 高 / 中 / 低 always wins. `DEFAULT_SETTINGS` is unchanged.
+- **60 fps cap (P8).** A 90 / 120 Hz phone rendered 120 fps even in the nearly static prep phase. `createFieldView` sets `app.ticker.maxFPS = MAX_FPS` right after the `Application` is created, on every device. Animation time is unchanged: `frameBody` takes its dt from `performance.now()`, and the load governor's budget is already floored at a 60 Hz frame.
+
+[ASSUMED]:
+- `MAX_FPS` is **62**, not 60. PIXI's limiter drops whole display frames and compares whole milliseconds; replaying its `Ticker.update` on a vsync clock (±0.3–1 ms jitter) gives about 57–59 fps with 33 ms gaps on a 60 Hz display at 60, and about 60 fps on 60 / 75 / 90 / 120 / 144 Hz at 62. One-line flip: `render/app.js MAX_FPS = 60`.
+- A phone is "coarse pointer and shorter screen side < 500 px" (`PHONE_SHORT_SIDE`): iPhones are 375–430, large Android phones up to about 480, the smallest tablets 600+; a foldable unfolded counts as a tablet.
+- An existing player cannot be told from one who chose: the settings store saves the whole object on any change (a volume slider included), so a phone that changed any setting before this version has `quality: 'high'` saved and keeps it. On a phone, the first change after this version saves the then-current 中 the same way (an explicit value from then on).
+- The wake lock is held only on the match and room screens (title, result and menus are short and touched). Over plain http (LAN) there is no `navigator.wakeLock`, and no fallback (the muted-video trick) is used.
+- `'playback'` also interrupts other apps' audio (music, podcasts) while the game plays; the silent switch is the more common complaint.
+
+Tests: `test/ui/devices.test.js` (the wake lock with a fake navigator / document: request, re-request after hide, release, refusal, no API, a late resolve; the hint button and its markup; `isPhone`; `settings.js` booted in child processes per device, saved quality wins), `test/ui/audio.test.js` (`audioSession.type` is `'playback'` when the context is created; absent or throwing is harmless), `test/ui/gameLogic.test.js` (`defaultQuality` / `sanitizeSettings` fallback), `test/render/loadlevel.test.js` (source assertions: the cap is set once at creation, dt stays on `performance.now()`).

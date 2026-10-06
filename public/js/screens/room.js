@@ -14,6 +14,7 @@ import {
 } from '../ui/components.js';
 import { toast, toastError } from '../ui/toasts.js';
 import { GuideButton } from '../ui/guide.js';
+import { useWakeLock } from '../ui/device.js';
 import { LoadoutButton } from './loadout.js';
 import { net } from '../net.js';
 import { account } from '../account.js';
@@ -195,6 +196,7 @@ export function RoomScreen() {
   const alive = useRef(true);
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
   useEffect(() => () => { alive.current = false; }, []);
+  useWakeLock();   // waiting for the others with the phone in hand: no lock screen while the room is open
 
   if (!room) return null;
   const online = conn.status === 'online';
