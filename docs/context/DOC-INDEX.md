@@ -133,15 +133,15 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;5. 排错 | 233–246 | 2.3 KB |
 | &nbsp;&nbsp;6. 本地客户端素材（可选） | 247–261 | 2.0 KB |
 
-## DESIGN.md (698 KB, 2387 lines)
+## DESIGN.md (700 KB, 2389 lines)
 
 | Section | Lines | Size |
 |---|---|---|
-| 卫戍协议：盟约 — Web Remake · Architecture & Contracts (DESIGN.md) | 1–2387 | 698 KB |
+| 卫戍协议：盟约 — Web Remake · Architecture & Contracts (DESIGN.md) | 1–2389 | 700 KB |
 | &nbsp;&nbsp;0. Product scope (v1) | 11–27 | 2.0 KB |
 | &nbsp;&nbsp;1. Tech stack | 28–39 | 1.2 KB |
 | &nbsp;&nbsp;2. Repository layout & ownership | 40–124 | 6.5 KB |
-| &nbsp;&nbsp;3. Coordinates, fields and geometry | 125–141 | 4.5 KB |
+| &nbsp;&nbsp;3. Coordinates, fields and geometry | 125–141 | 4.6 KB |
 | &nbsp;&nbsp;4. Time model | 142–153 | 2.0 KB |
 | &nbsp;&nbsp;5. Simulation (server/sim) — engine contract | 154–318 | 32 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;5.1 Battle API (implemented by the sim-core owner; consumed by match & content) | 156–213 | 3.5 KB |
@@ -257,7 +257,7 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;&nbsp;&nbsp;22.14 Ranged enemies stand for each attack (#58) — `sim/ai.js attackStand / enemyAttack / updateEnemy / advanceRoute`, `sim/simdata.js normalizeEnemy`, `sim/Battle.js spawnEnemy`, `tools/build-data.mjs enemyAttackAnim / attacksOnTheMove / loadManifest`, enemies.json `attackAnim` / `attackMoves`, `render/spine.js SpineActor.windUp / attack (clipPerAttack)`, `render/units.js` | 1672–1687 | 7.5 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;22.15 An operator forced off the field lies down and comes back there (#60) — `sim/Battle.js isDown / retreat` (with `_remove`, `_layBody`, `restTile`, `downOn`, `_checkRedeploys`, `snapshot` unchanged), `content/kits/tier5.js` (余烬) | 1688–1703 | 4.5 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;22.16 干员调配 shows the stats, 攻击范围, 特性 and 天赋 the chosen skill / module fight with (#64) — `screens/loadout.js statsPreview / LoadoutStats`, `ui/detailPanel.js chessStatsBlock / chessTalents / traitText`, `css/screens/loadout.css .lo-sec--stats` | 1704–1714 | 5.4 KB |
-| &nbsp;&nbsp;23. Community reports after 0.1.2 (v0.1.3) | 1715–2130 | 142 KB |
+| &nbsp;&nbsp;23. Community reports after 0.1.2 (v0.1.3) | 1715–2131 | 142 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;23.1 联防 carries the HP ratio and the SP only — no running skill (community report #34, GitHub #82) — `match/unite.js uniteBattleOpts`, `sim/skills.js` (`reset`, `spTotal`, `setSpTotal`), `sim/Battle.js` (`_buildResult` unitsEnd, `_deploy`, `_startDeploying`), `match/fields.js` (client-reported unitsEnd), `match/PlayerState.js battleInput` | 1721–1731 | 4.9 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;23.2 联防: 阿戈尔's devour counts the operators down since their own combat (community report #3, GitHub #33 item 3) — `content/bonds/core.js devour` | 1732–1741 | 4.2 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;23.3 不屈 rolls on a 撤退 and on a 傀儡师's 替身 switch (owner's decision 2026-10-04) — `content/bonds/addon/battle.js` (不屈), `sim/professions.js installDollkeeper` (hook `dollSwap`) | 1742–1752 | 4.1 KB |
@@ -292,59 +292,59 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;&nbsp;&nbsp;23.32 乌尔比安 S3 【移动】 and 【返回】 are free redeploys (community report 「乌尔比安三技能结束后不属于再部署」) — `Battle.moveRedeploy`, `kits/tier5.js`, `tokens.js` 从不混淆的方向, `devices.js`, `render/interp.js`, `render/spine.js` | 2053–2063 | 4.0 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;23.33 波登可's spore cloud radius is 0.9 (PRTS 备注) — `kits/tier1.js` `SPORE_RADIUS` | 2064–2074 | 1.3 KB |
 | &nbsp;&nbsp;&nbsp;&nbsp;23.34 琳琅诗怀雅 S3 shoots her coins when the purse reaches 10 (owner 2026-10-04) — `kits/tier3.js` 千金一掷 | 2075–2085 | 1.8 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;23.35 高台 only for elite 歌蕾蒂娅 carrying HOK-Y (owner's decision 2026-10-04) — `shared/highGround.js`, `match/board.js placeClass`, `PlayerState._placementOf`, `ui/gameLogic.js piecePosition`, `match/bot.js planLayoutSteps`, `tools/build-data.mjs` | 2086–2095 | 3.4 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;23.36 Watching another board during prep follows its moves (GitHub #87) — `Match.watch`, `Match._notifyPrepScouts`, `ui/screens/game.js` | 2096–2103 | 1.7 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;23.37 折射 reads as off while the enemy is silenced — `ui/abilityLines.js`, `ui/detailPanel.js` EnemyDetail, `render/style.js statusIconKey`, `render/units.js`, `shared/protocol.js unitStatsEntry` | 2104–2112 | 1.6 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;23.38 A granted chess is named, and the new card flashes — `effectsMeta.js grantChess`, `render/app.js setPrep` | 2113–2121 | 1.5 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;23.39 An emote manifest that times out shows the glyph — `data.js` `local` / `assets`, `ui/emotes.js` EmoteArt | 2122–2130 | 1.9 KB |
-| &nbsp;&nbsp;24. Co-op rooms of 5–8 players (a remake extension, unreleased) | 2131–2181 | 16 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;24.1 Room capacity — `shared/constants.js MAX_SEATS / DEFAULT_SEATS`, `shared/protocol.js` (`room.create {capacity?}`, `room.setCapacity`), `server/lobby.js` (`coopCapacity`, `Room.capacity / resize`, `Lobby.setCapacity`, `BOT_NAMES`), `worker/room-runtime.js socketLimits / admission`, `worker/index.js` (listing), `screens/room.js` (`roomCapacity`, `CapacityPicker`), `screens/lobby.js`, `ui/components.js SEAT_HUES / seatHue`, `ui/teamPanel.js teamCompact` | 2135–2141 | 3.3 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;24.2 The shared pool — `gamedata.js poolCopies(baseId, players)`, `pool.js SharedPool({ players })`, `Match` constructor | 2142–2145 | 559 B |
-| &nbsp;&nbsp;&nbsp;&nbsp;24.3 Drafts — `Match.bandTurnSeconds`, `gamedata.js bandTurnSeconds / spTurnSeconds`, `choices.js spDraftCardCount / bountyDraftCards / shopDraftCards`, `shared/protocol.js SP_CARDS_MAX` | 2146–2150 | 1.2 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;24.4 联防 with more than 4 alive players — `server/match/unite.js` (`uniteFieldBudget`, `uniteHelperGroups`, `assignLeakers`, `uniteFieldId`, `uniteGroups / uniteGroupOf`, `uniteBills / uniteResultFor`), `Match` (UNITE: `_uniteHomeField`, `settle(plan, results)`, `_watchClient`), `audit.js`, `sim/spec.js fitResult`, `battle/observe.js` (`multiUnite`, `uniteFields`, `uniteHomeField`, `uniteLocalFor`, `uniteSwitchFields`, `backTarget`), `ui/gameLogic.js fieldLabel`, `ui/combatHud.js UniteFieldSwitch`, `ui/teamPanel.js`, `screens/replay.js replayBattleLabel` | 2151–2158 | 5.3 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;24.5 Final Assault and Hidden Core — `finalAssault.js`, `gamedata.js bossPoolShare / bossOvertimeDrainFor / bossOvertimeDue / hiddenThreshold`, `Match.startFinalAssault / _applyOvertime` (`bossAlive`, `hiddenLayerPlayers`) | 2159–2165 | 1.6 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;24.6 Results, limits and the rest — `results.js assignTitles`, `shared/protocol.js RESULT_LIMITS`, `audit.js` | 2166–2174 | 1.3 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;24.7 Tests and docs | 2175–2181 | 2.1 KB |
-| &nbsp;&nbsp;25. Community reports after 0.1.3 | 2182–2196 | 5.1 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;25.1 A skill clip with no Begin and no own Idle plays once — 德克萨斯 S2 剑雨 (player report) — `render/spine.js SpineActor.setSkill / update` (`_castsOnce`, `_cast`, mode `skillCast`) | 2186–2196 | 4.8 KB |
-| &nbsp;&nbsp;26. Phones (player report and phone audit, 2026-10-06) | 2197–2308 | 7.9 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;26.1 Pieces big enough to tap — `render/projection.js clearHud`, `ui/fieldHost.js hudBands`, `render/app.js` (pinch, battle taps), `render/pick.js pickBody`, `render/drag.js` | 2201–2228 | 2.6 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;26.2 The engine on a slow link — `render/app.js STARTUP_WAIT_MS`, `ui/fieldHost.js`, `main.js warmGameData` | 2229–2235 | 972 B |
-| &nbsp;&nbsp;&nbsp;&nbsp;26.3 Covered controls and wrong taps — `css/devices.css`, `css/screens/game-shop.css`, `screens/game.js` | 2236–2249 | 660 B |
-| &nbsp;&nbsp;&nbsp;&nbsp;26.4 Type floor — `css/devices.css` §6 (short touch screens) | 2250–2268 | 945 B |
-| &nbsp;&nbsp;&nbsp;&nbsp;26.5 Phone keyboards — `ui/components.js TextField` | 2269–2275 | 312 B |
-| &nbsp;&nbsp;&nbsp;&nbsp;26.6 Screen awake, sound with the silent switch, locked rotation, graphics default, frame cap — `ui/device.js keepScreenAwake / useWakeLock / isPhone`, `audio.js _playbackSession`, `index.html` + `css/theme.css .rotate-hint__fs`, `ui/gameLogic.js defaultQuality`, `ui/settings.js`, `render/app.js MAX_FPS` | 2276–2289 | 1.3 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;26.7 Not done here (from the audit) | 2290–2308 | 649 B |
-| &nbsp;&nbsp;27. 外援 / 甄选 (DIY) slots (remake addition) | 2309–2342 | 8.4 KB |
-| &nbsp;&nbsp;28. 匹配 (matchmaking queue) — a remake addition | 2343–2387 | 7.7 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;28.1 The Node server's queue — `server/lobby.js`, `shared/protocol.js`, `public/js/screens/lobby.js` / `room.js` | 2349–2371 | 3.6 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;28.2 匹配 in the room Worker (account mode) — `worker/matchmaker.js`, `worker/rooms/queue-routes.js`, `public/js/room-net.js` | 2372–2387 | 3.8 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;23.35 高台 only for elite 歌蕾蒂娅 carrying HOK-Y (owner's decision 2026-10-04) — `shared/highGround.js`, `match/board.js placeClass`, `PlayerState._placementOf`, `ui/gameLogic.js piecePosition`, `match/bot.js planLayoutSteps`, `tools/build-data.mjs` | 2086–2096 | 3.7 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;23.36 Watching another board during prep follows its moves (GitHub #87) — `Match.watch`, `Match._notifyPrepScouts`, `ui/screens/game.js` | 2097–2104 | 1.7 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;23.37 折射 reads as off while the enemy is silenced — `ui/abilityLines.js`, `ui/detailPanel.js` EnemyDetail, `render/style.js statusIconKey`, `render/units.js`, `shared/protocol.js unitStatsEntry` | 2105–2113 | 1.6 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;23.38 A granted chess is named, and the new card flashes — `effectsMeta.js grantChess`, `render/app.js setPrep` | 2114–2122 | 1.5 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;23.39 An emote manifest that times out shows the glyph — `data.js` `local` / `assets`, `ui/emotes.js` EmoteArt | 2123–2131 | 1.9 KB |
+| &nbsp;&nbsp;24. Co-op rooms of 5–8 players (a remake extension, unreleased) | 2132–2182 | 16 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;24.1 Room capacity — `shared/constants.js MAX_SEATS / DEFAULT_SEATS`, `shared/protocol.js` (`room.create {capacity?}`, `room.setCapacity`), `server/lobby.js` (`coopCapacity`, `Room.capacity / resize`, `Lobby.setCapacity`, `BOT_NAMES`), `worker/room-runtime.js socketLimits / admission`, `worker/index.js` (listing), `screens/room.js` (`roomCapacity`, `CapacityPicker`), `screens/lobby.js`, `ui/components.js SEAT_HUES / seatHue`, `ui/teamPanel.js teamCompact` | 2136–2142 | 3.3 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;24.2 The shared pool — `gamedata.js poolCopies(baseId, players)`, `pool.js SharedPool({ players })`, `Match` constructor | 2143–2146 | 559 B |
+| &nbsp;&nbsp;&nbsp;&nbsp;24.3 Drafts — `Match.bandTurnSeconds`, `gamedata.js bandTurnSeconds / spTurnSeconds`, `choices.js spDraftCardCount / bountyDraftCards / shopDraftCards`, `shared/protocol.js SP_CARDS_MAX` | 2147–2151 | 1.2 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;24.4 联防 with more than 4 alive players — `server/match/unite.js` (`uniteFieldBudget`, `uniteHelperGroups`, `assignLeakers`, `uniteFieldId`, `uniteGroups / uniteGroupOf`, `uniteBills / uniteResultFor`), `Match` (UNITE: `_uniteHomeField`, `settle(plan, results)`, `_watchClient`), `audit.js`, `sim/spec.js fitResult`, `battle/observe.js` (`multiUnite`, `uniteFields`, `uniteHomeField`, `uniteLocalFor`, `uniteSwitchFields`, `backTarget`), `ui/gameLogic.js fieldLabel`, `ui/combatHud.js UniteFieldSwitch`, `ui/teamPanel.js`, `screens/replay.js replayBattleLabel` | 2152–2159 | 5.3 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;24.5 Final Assault and Hidden Core — `finalAssault.js`, `gamedata.js bossPoolShare / bossOvertimeDrainFor / bossOvertimeDue / hiddenThreshold`, `Match.startFinalAssault / _applyOvertime` (`bossAlive`, `hiddenLayerPlayers`) | 2160–2166 | 1.6 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;24.6 Results, limits and the rest — `results.js assignTitles`, `shared/protocol.js RESULT_LIMITS`, `audit.js` | 2167–2175 | 1.3 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;24.7 Tests and docs | 2176–2182 | 2.1 KB |
+| &nbsp;&nbsp;25. Community reports after 0.1.3 | 2183–2197 | 5.1 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;25.1 A skill clip with no Begin and no own Idle plays once — 德克萨斯 S2 剑雨 (player report) — `render/spine.js SpineActor.setSkill / update` (`_castsOnce`, `_cast`, mode `skillCast`) | 2187–2197 | 4.8 KB |
+| &nbsp;&nbsp;26. Phones (player report and phone audit, 2026-10-06) | 2198–2309 | 7.9 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;26.1 Pieces big enough to tap — `render/projection.js clearHud`, `ui/fieldHost.js hudBands`, `render/app.js` (pinch, battle taps), `render/pick.js pickBody`, `render/drag.js` | 2202–2229 | 2.6 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;26.2 The engine on a slow link — `render/app.js STARTUP_WAIT_MS`, `ui/fieldHost.js`, `main.js warmGameData` | 2230–2236 | 972 B |
+| &nbsp;&nbsp;&nbsp;&nbsp;26.3 Covered controls and wrong taps — `css/devices.css`, `css/screens/game-shop.css`, `screens/game.js` | 2237–2250 | 660 B |
+| &nbsp;&nbsp;&nbsp;&nbsp;26.4 Type floor — `css/devices.css` §6 (short touch screens) | 2251–2269 | 945 B |
+| &nbsp;&nbsp;&nbsp;&nbsp;26.5 Phone keyboards — `ui/components.js TextField` | 2270–2276 | 312 B |
+| &nbsp;&nbsp;&nbsp;&nbsp;26.6 Screen awake, sound with the silent switch, locked rotation, graphics default, frame cap — `ui/device.js keepScreenAwake / useWakeLock / isPhone`, `audio.js _playbackSession`, `index.html` + `css/theme.css .rotate-hint__fs`, `ui/gameLogic.js defaultQuality`, `ui/settings.js`, `render/app.js MAX_FPS` | 2277–2290 | 1.3 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;26.7 Not done here (from the audit) | 2291–2309 | 649 B |
+| &nbsp;&nbsp;27. 外援 / 甄选 (DIY) slots (remake addition) | 2310–2344 | 10 KB |
+| &nbsp;&nbsp;28. 匹配 (matchmaking queue) — a remake addition | 2345–2389 | 7.7 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;28.1 The Node server's queue — `server/lobby.js`, `shared/protocol.js`, `public/js/screens/lobby.js` / `room.js` | 2351–2373 | 3.6 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;28.2 匹配 in the room Worker (account mode) — `worker/matchmaker.js`, `worker/rooms/queue-routes.js`, `public/js/room-net.js` | 2374–2389 | 3.8 KB |
 
-## META.md (85 KB, 840 lines)
+## META.md (85 KB, 841 lines)
 
 | Section | Lines | Size |
 |---|---|---|
-| META.md — match & meta engine (server/match) | 1–840 | 85 KB |
-| &nbsp;&nbsp;1. Match flow | 33–292 | 27 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;1.1 Band draft | 92–101 | 988 B |
-| &nbsp;&nbsp;&nbsp;&nbsp;1.2 机变 (SP draft) | 102–170 | 8.0 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;1.3 Disconnects, AI takeover | 171–188 | 1.7 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;1.3a Solo pause | 189–196 | 712 B |
-| &nbsp;&nbsp;&nbsp;&nbsp;1.4 Watching fields | 197–225 | 3.1 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;1.5 AI player (bot.js) | 226–292 | 7.2 KB |
-| &nbsp;&nbsp;2. Effect registry (content API) | 293–495 | 20 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;2.1 Keys | 308–325 | 1.4 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;2.2 Hooks and events | 326–360 | 4.7 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;2.3 Garrisons (特质) | 361–388 | 1.9 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;2.4 The handler context (`ctx`) | 389–426 | 4.7 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;2.5 Items: consume-on-equip and Arts | 427–472 | 5.5 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;2.6 机变 card application | 473–495 | 1.3 KB |
-| &nbsp;&nbsp;3. Rules implemented (summary; details in each module header) | 496–656 | 18 KB |
-| &nbsp;&nbsp;&nbsp;&nbsp;3.1 Balance layer (data/tuning.json) | 639–656 | 1.2 KB |
-| &nbsp;&nbsp;4. 联防 (Unite) | 657–703 | 5.2 KB |
-| &nbsp;&nbsp;5. Views (DESIGN §8.2 / §8.3) and deviations | 704–776 | 6.7 KB |
-| &nbsp;&nbsp;6. Testing & tools | 777–807 | 3.0 KB |
-| &nbsp;&nbsp;7. Assumptions (all documented in module headers) | 808–840 | 3.3 KB |
+| META.md — match & meta engine (server/match) | 1–841 | 85 KB |
+| &nbsp;&nbsp;1. Match flow | 34–293 | 27 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;1.1 Band draft | 93–102 | 988 B |
+| &nbsp;&nbsp;&nbsp;&nbsp;1.2 机变 (SP draft) | 103–171 | 8.0 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;1.3 Disconnects, AI takeover | 172–189 | 1.7 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;1.3a Solo pause | 190–197 | 712 B |
+| &nbsp;&nbsp;&nbsp;&nbsp;1.4 Watching fields | 198–226 | 3.1 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;1.5 AI player (bot.js) | 227–293 | 7.2 KB |
+| &nbsp;&nbsp;2. Effect registry (content API) | 294–496 | 20 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;2.1 Keys | 309–326 | 1.4 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;2.2 Hooks and events | 327–361 | 4.7 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;2.3 Garrisons (特质) | 362–389 | 1.9 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;2.4 The handler context (`ctx`) | 390–427 | 4.7 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;2.5 Items: consume-on-equip and Arts | 428–473 | 5.5 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;2.6 机变 card application | 474–496 | 1.3 KB |
+| &nbsp;&nbsp;3. Rules implemented (summary; details in each module header) | 497–657 | 18 KB |
+| &nbsp;&nbsp;&nbsp;&nbsp;3.1 Balance layer (data/tuning.json) | 640–657 | 1.2 KB |
+| &nbsp;&nbsp;4. 联防 (Unite) | 658–704 | 5.2 KB |
+| &nbsp;&nbsp;5. Views (DESIGN §8.2 / §8.3) and deviations | 705–777 | 6.7 KB |
+| &nbsp;&nbsp;6. Testing & tools | 778–808 | 3.0 KB |
+| &nbsp;&nbsp;7. Assumptions (all documented in module headers) | 809–841 | 3.3 KB |
 
 ## PLAYING.md (53 KB, 193 lines)
 
