@@ -1164,3 +1164,50 @@ A phone audit (2026-10-06) found five things that spoil a match on a phone witho
 - `'playback'` also interrupts other apps' audio (music, podcasts) while the game plays; the silent switch is the more common complaint.
 
 Tests: `test/ui/devices.test.js` (the wake lock with a fake navigator / document: request, re-request after hide, release, refusal, no API, a late resolve; the hint button and its markup; `isPhone`; `settings.js` booted in child processes per device, saved quality wins), `test/ui/audio.test.js` (`audioSession.type` is `'playback'` when the context is created; absent or throwing is harmless), `test/ui/gameLogic.test.js` (`defaultQuality` / `sanitizeSettings` fallback), `test/render/loadlevel.test.js` (source assertions: the cap is set once at creation, dt stays on `performance.now()`).
+
+### 20.18 Phones: the engine on a slow link, home-screen install, overlaps, a type floor, keyboards (phone audit 2026-10-06) — `render/app.js STARTUP_WAIT_MS`, `ui/fieldHost.js`, `main.js warmGameData`, `manifest.webmanifest` + `ui/install.js`, `css/devices.css`, `resources/view.js`, `screens/game.js`, `ui/components.js TextField`
+
+The user's report was "整个棋盘位于中间位置，缩放过小". Beyond §20.16 it also described the flat DOM fallback board, which has 24 px tiles in the middle of the screen. A phone on a slow link landed there for the whole match.
+
+**The engine on a slow link.**
+- `createFieldView` used to wait for its optional parts one after another: the asset manifest 4 s, fonts 1.5 s, the board art 2.5 s and the 3D board 6 s. That is 14 s, more than `ui/fieldHost.js`'s 12 s engine timeout, which then mounted the fallback and never retried.
+- Those waits now share one 4 s budget (`STARTUP_WAIT_MS`). Each part still upgrades the view in place when it lands, as the 3D board and the board art always could.
+- The engine timeout is 30 s. An engine that resolves after it is destroyed, because the fallback owns the host by then.
+- Entering a room warms the render engine's modules and Pixi / pixi-spine together with the game data.
+
+**Home screen.**
+- Ported from dbe7fce (claude/bold-hawking-vzawfq): a web manifest (fullscreen, landscape), icons, and the title's 安装 button (`ui/install.js`).
+- iPhone Safari has no element fullscreen. Installed, the game gets the whole screen: 844×390 instead of about 780×300 on an iPhone 14.
+
+**Overlaps and wrong taps.**
+- The room's stacked 复制密钥 / 复制链接 buttons:
+  - Problem: the generic 44 px hit area of 复制链接 covered 复制密钥, so a tap on the key copied the link.
+  - Fix: each area now ends in the middle of the gap.
+- The fixed 资源管理 launcher:
+  - Problem: it sat over 17 % of the room's 开始模拟 / 准备就绪 button.
+  - Fix: on touch screens it shows on the title and the lobby only.
+- The promotion reward's tag:
+  - Problem: the vertical 晋升奖励 shrank to one glyph.
+  - Fix: `flex: none`, and short screens hide its English micro line.
+- A shop card's or an item's detail card:
+  - Problem: it stayed over the battlefield into combat.
+  - Fix: it closes when combat starts.
+
+**Type floor** (`css/devices.css` §6, short touch screens only).
+- Text that carries information gets `max(<its rem>, N px)`:
+  - shop-card name 10 px, its bonds 8 px;
+  - bond-strip names 8 px, with slots widened to 35 px so 4-character names stay apart; layer counts 8 px;
+  - team names 9 px;
+  - funds, round, remaining placements, the ready count and effect stacks 8–9 px;
+  - detail-card stat values 9 px, labels 7 px, and the 特质 text 9 px.
+- Keyboard hints are hidden on devices without hover. The HUD's English captions (COUNTDOWN, LEVEL, ms) are hidden on short screens.
+- Boxes keep their sizes: long names ellipsize.
+
+**Keyboards.** `TextField` sets `autocorrect="off"` and `autocapitalize` off by default, and passes `autoCapitalize` / `enterKeyHint` / `inputMode` through.
+- The room code: `characters` + `go`.
+- The callsign: `go`.
+- The loadout search: `search`.
+
+[ASSUMED]:
+- The 4 s budget and the 30 s timeout.
+- Each floor value. The floors cover the match HUD first; the briefing / draft / result screens keep their sizes.
