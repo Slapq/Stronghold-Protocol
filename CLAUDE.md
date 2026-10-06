@@ -106,5 +106,8 @@ node tools/kit-coverage.mjs --missing    # which selectable skills lack a hand-a
   missing fields, the browser's in-match chess lookup lacks 外援 records, picks not synced to accounts.
 - No 外援 operator has a hand-authored kit yet: skills generic, talents generic (`content/genericTalents.js`: ≈ two thirds of
   the talent texts; mechanics like 魔力 / 能量 / 我执 / 命中率 / faction groups are dropped, see `talentCoverage`); no 外援 module data.
+  Their summons are generic too (`content/genericSummons.js`: returns, stock, traps, lifetimes, links); not modelled: 望's 棋子
+  links / extra piece, 令 S3 merge, 娜斯提's 高台, 战术锚点 / 牵绊 / “一会儿见！” moves, 黑键's 能量 count, 死芒's upgrades,
+  中继器 redirects, 指挥中心 援军 area (the summon stands, its owner-side mechanic is missing).
 - Stale docs: DESIGN.md §2 client file list, DATA.md:3 (not all data is from build-data), asset counts in ASSETS.md,
   `docs/CONTENT.md` referenced by server/sim/content/support/index.js does not exist.

@@ -56,7 +56,12 @@ export function setupUnitKit(battle, unit, mode = 'full') {
     if (typeof tk === 'function') {
       try { const k = tk(bb, raw, def); if (k) return k; } catch (e) { battle._handlerError(`tokenKit:${def.id}`, unit, e); }
     }
-    // a summon without a token kit: the generic kit (its skill, if any, and its generic talents — genericTalents.js)
+    // a summon without a token kit (外援): full mode — tokens.genericTokenKit (the owner kit's `tokenKits[id]`, a trap
+    // kit, or the generic kit + generic summon talents, genericSummons.js); otherwise the generic kit (its skill, if any,
+    // and its generic talents — genericTalents.js)
+    if (mode === 'full' && typeof tokens.genericTokenKit === 'function') {
+      try { const k = tokens.genericTokenKit(battle, unit, bb, raw, def); if (k) return k; } catch (e) { battle._handlerError(`genericTokenKit:${def.id}`, unit, e); }
+    }
     return genericKit(bb, raw, def);
   }
   if (unit.kind !== 'op') return {};
