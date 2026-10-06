@@ -99,9 +99,13 @@ node tools/kit-coverage.mjs --missing    # which selectable skills lack a hand-a
 
 ## Known open issues (keep this list current)
 
-- 外援 core bugs under repair on `claude/waiguan-complete`: picks never rolled in the owner's shop (PlayerState rolls without
-  `playerId`), `Match.setPicks` checks a non-existent `PHASE.BAND_CHECK`, checkpoints do not log `setPicks`, bot 甄选 filters read
-  missing fields, the browser's in-match chess lookup lacks 外援 records, picks not synced to accounts.
-- No 外援 operator has a hand-authored kit yet (all skills generic, no talents); no 外援 module data.
+- 外援 core bugs under repair on `claude/waiguan-complete`: no 外援 ever enters a battle (the battle DataSource — server
+  `Match.ds`, browser runner, Worker replay/recovery engines — lacks the waiguan records and `Battle` silently skips unknown
+  chess), picks never rolled in the owner's shop (PlayerState rolls without `playerId`), `Match.setPicks` checks a
+  non-existent `PHASE.BAND_CHECK`, checkpoints do not log `setPicks`, bot 甄选 filters read missing fields, the browser's
+  in-match chess lookup lacks 外援 records, picks not synced to accounts.
+- 外援 kits: being hand-authored one file per operator (`server/sim/content/kits/waiguan/`); the rest still run generic skills
+  and no talents. Modules: tier VI elites carry them (85/87 active, level 3), but tier V elites wrongly carry level 3 instead
+  of 1 (wrong stats/talents/module choices) and normal records lack the inactive `module` stub the pool has.
 - Stale docs: DESIGN.md §2 client file list, DATA.md:3 (not all data is from build-data), asset counts in ASSETS.md,
   `docs/CONTENT.md` referenced by server/sim/content/support/index.js does not exist.
