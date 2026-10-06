@@ -790,12 +790,14 @@ export function DifficultyTag({ difficulty, size = 'md', class: cls, code }) {
 }
 
 /**
- * Bracketed text input.
+ * Bracketed text input. Phone keyboards: no autocorrect, no auto-capitalisation unless `autoCapitalize` asks for it (iOS
+ * rewrote typed room codes), and the Enter key labelled for its action (`enterKeyHint` go / search) — phone audit T10.
  * @param {{ label?: any, micro?: string, value: string, onInput: (v: string) => void, onEnter?: Function,
  *   placeholder?: string, maxLength?: number, transform?: (v: string) => string, autoFocus?: boolean,
- *   disabled?: boolean, size?: 'md'|'lg'|'code', icon?: string, class?: string, inputRef?: any, name?: string }} props
+ *   disabled?: boolean, size?: 'md'|'lg'|'code', icon?: string, class?: string, inputRef?: any, name?: string,
+ *   autoCapitalize?: string, enterKeyHint?: string, inputMode?: string }} props
  */
-export function TextField({ label, micro, value, onInput, onEnter, placeholder, maxLength, transform, autoFocus, disabled, size = 'md', icon, class: cls, inputRef, name, hint, invalid }) {
+export function TextField({ label, micro, value, onInput, onEnter, placeholder, maxLength, transform, autoFocus, disabled, size = 'md', icon, class: cls, inputRef, name, hint, invalid, autoCapitalize, enterKeyHint, inputMode }) {
   const localRef = useRef(null);
   const ref = inputRef || localRef;
   const composing = useRef(false);
@@ -817,6 +819,7 @@ export function TextField({ label, micro, value, onInput, onEnter, placeholder, 
       ${icon ? html`<${Icon} name=${icon} class="field__icon" />` : null}
       <input id=${id} ref=${ref} class="field__input" name=${name} value=${value} placeholder=${placeholder}
         maxLength=${maxLength} disabled=${disabled} autocomplete="off" spellcheck=${false}
+        autocorrect="off" autocapitalize=${autoCapitalize || 'off'} enterkeyhint=${enterKeyHint} inputmode=${inputMode}
         onInput=${handle}
         oncompositionstart=${() => { composing.current = true; }}
         oncompositionend=${(e) => { composing.current = false; handle(e); }}

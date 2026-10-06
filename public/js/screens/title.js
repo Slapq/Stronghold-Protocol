@@ -256,7 +256,7 @@ export function TitleScreen() {
           onClick=${()=>location.assign('/api/auth/github/start')}>${account.loginReady?'使用 GitHub 登录':'GitHub 登录尚未配置'}<//>
           <${Button} variant="ghost" size="lg" block=${true} onClick=${()=>store.patch('session',{entered:true})}>浏览在线大厅<//>` : html`
         <${TextField} label="博士代号" micro="CALLSIGN" size="lg" icon="user" value=${name} maxLength=${NAME_MAX_LEN}
-          placeholder="输入你的代号（最多 ${NAME_MAX_LEN} 字）" autoFocus=${!touchUi}
+          placeholder="输入你的代号（最多 ${NAME_MAX_LEN} 字）" autoFocus=${!touchUi} enterKeyHint="go"
           onInput=${setName} onEnter=${start} />
         <${Button} variant="primary" size="xl" block=${true} iconRight="chevrons" disabled=${!valid} onClick=${start}>开始<//>`}
         <div class="title-conn">
