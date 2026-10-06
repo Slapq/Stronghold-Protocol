@@ -278,18 +278,18 @@ export function installGenericSummoner(battle, owner, toks, H) {
   // ---- stock (consumables)
   const groups = new Map();
   const container = talents.find((x) => x && !x.tokenKey && num(x.bb?.cnt, 0) > 1 && /可以(?:使用|携带)\d+个/.test(descOf(x)));
+  // the equipped module's trait addition raises it: "召唤物持有上限+3" (令 SUM-Y), "<支援装置>的持有上限+1" (白铁 / 娜斯提)
+  const modText = normText(od.raw?.trait?.moduleDesc ?? '');
+  const modUp = modText.match(/(?:召唤物|<[^>]{1,8}>|装置)的?持有上限\+(\d+)/);
+  const holdUp = modUp ? +modUp[1] : 0;
   for (const info of infos) {
     const tx = info.ownTalent ? descOf(info.ownTalent) : '';
     const c = info.ownTalent ? num(info.ownTalent.bb?.cnt, 0) : 0;
     if (c > 1) {
       const mx = tx.match(/最多拥有(\d+)(?:个|枚)/);
-      info.group = { key: info.id, left: c, max: mx ? +mx[1] : Infinity };
+      info.group = { key: info.id, left: c + holdUp, max: mx ? +mx[1] + holdUp : Infinity };
     } else if (container && info.src.includes('skill') && !info.ownTalent) {
-      if (!groups.has('container')) {
-        const cx = descOf(container);
-        const mx = cx.match(/持有上限\+(\d+)/);
-        groups.set('container', { key: 'container', left: num(container.bb.cnt), max: Infinity, note: mx });
-      }
+      if (!groups.has('container')) groups.set('container', { key: 'container', left: num(container.bb.cnt) + holdUp, max: Infinity });
       info.group = groups.get('container');
     }
   }
@@ -534,15 +534,29 @@ export function installGenericSummoner(battle, owner, toks, H) {
       }
     }, { owner });
   }
-  // ---- "周围8格的自身装置损毁时，有N%的几率回收使Y额外获得M个装置" (白铁): a device destroyed next to the owner may come back
+  // ---- "周围8格的自身装置损毁时，有N%的几率回收使Y额外获得M个装置" (白铁; elite "当这些装置损毁时有90%的几率…"): a device
+  // destroyed next to the owner may come back; elite "当白铁周围8格存在自身装置时技力回复速度+0.2/秒"
+  const near = (u) => Math.max(Math.abs(u.tileR - owner.tileR), Math.abs(u.tileC - owner.tileC)) <= 1;
   for (const tal of talents) {
-    const m = descOf(tal).match(/周围8格的自身装置损毁时，有(\d+)%的几率回收使[^，。]{1,6}?额外获得(\d+|一)个装置/);
+    const tx = descOf(tal);
+    const sp = tx.match(/周围8格存在自身装置时技力回复速度\+(\d+(?:\.\d+)?)\/秒/);
+    if (sp) {
+      const v = num(tal.bb?.sp_recovery_per_sec) ?? +sp[1];
+      const key = `gs:nearDevice:${owner.id}`;
+      battle.on('tick', () => {
+        const want = up(owner) && battle.allyUnits.some((u) => mine(u) && up(u) && near(u));
+        const has = owner.findBuff(key);
+        if (want && !has) battle.addBuff(owner, { key, mods: { spRecoveryFlat: v }, tags: ['talent'] });
+        else if (!want && has) battle.removeBuff(owner, key);
+      }, { owner });
+    }
+    const m = tx.match(/(?:周围8格的自身装置|这些装置)损毁时，?有(\d+)%的几率回收使[^，。]{1,6}?额外获得(\d+|一)个装置/);
     if (!m) continue;
     const p = num(tal.bb?.prob, +m[1] / 100), n = num(tal.bb?.cnt, cnt(m[2]));
     battle.on('death', (c) => {
       const u = c.unit;
       if (!mine(u) || !up(owner) || c.reason !== 'killed' && c.reason !== 'expired') return;
-      if (Math.max(Math.abs(u.tileR - owner.tileR), Math.abs(u.tileC - owner.tileC)) > 1) return;
+      if (!near(u)) return;
       const info = byId.get(u.defId);
       if (!info.group || !battle.rng.chance(p)) return;
       info.group.left = Math.min(info.group.max, info.group.left + n);

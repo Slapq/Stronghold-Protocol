@@ -226,6 +226,48 @@ test('多萝西: "部署后立刻在攻击范围内召唤2个共振装置" — t
   noErrors(h);
 });
 
+test('the equipped module raises the stock: 令 SUM-Y "召唤物持有上限+3" (5 → 8), 白铁 "<支援装置>的持有上限+1" (3 → 4); without it the talent\'s count', REAL, () => {
+  const stockOf = (chessId, tokenId, moduleId, pieces) => {
+    const h = makeBattle({
+      defs: { chess: WG }, timeLimit: 10, autoFinish: false,
+      units: [{ chessId, row: 10, col: 3, uid: 1, skillIndex: 0, ...(moduleId ? { moduleId } : {}) }, ...Array.from({ length: pieces }, (_, i) => ({ kind: 'token', tokenId, ownerUid: 1, row: 10, col: 5 + i, uid: 2 + i }))],
+    });
+    h.run(0.5);
+    noErrors(h);
+    const g = unitOf(h, 1).mem.genericSummons.infos.find((i) => i.id === tokenId).group;
+    return g.left + standing(h, tokenId).length;
+  };
+  const L = wgId('char_2023_ling', { elite: true }), S1 = 'token_10020_ling_soul1';
+  assert.equal(stockOf(L, S1, null, 3), 8, 'SUM-Y (default module)');
+  assert.equal(stockOf(L, S1, 'none', 3), 5, 'no module');
+  assert.equal(stockOf(wgId('char_2023_ling'), S1, null, 3), 5, 'normal');
+  const I = wgId('char_4072_ironmn', { elite: true }), P1 = 'token_10027_ironmn_pile1';
+  const mod = WG[I].modules.find((m) => m.isDefault)?.uniEquipId ?? WG[I].modules[0].uniEquipId;
+  assert.equal(stockOf(I, P1, mod, 2), 4);
+  assert.equal(stockOf(I, P1, 'none', 2), 3);
+});
+
+test('白铁 节约经费 with his module: "周围8格存在自身装置时技力回复速度+0.2/秒"; a device destroyed next to him comes back to the stock with the talent\'s chance (90 %)', REAL, () => {
+  const I = wgId('char_4072_ironmn', { elite: true }), P1 = 'token_10027_ironmn_pile1';
+  const h = makeBattle({
+    defs: { chess: WG }, timeLimit: 30, autoFinish: false, seed: 5,
+    units: [{ chessId: I, row: 10, col: 4, uid: 1, skillIndex: 0, moduleId: WG[I].modules.find((m) => m.isDefault).uniEquipId }, { kind: 'token', tokenId: P1, ownerUid: 1, row: 10, col: 5, uid: 2 }, { kind: 'token', tokenId: P1, ownerUid: 1, row: 12, col: 8, uid: 3 }],
+  });
+  h.run(0.5);
+  const iron = unitOf(h, 1);
+  assert.equal(iron.findBuff(`gs:nearDevice:${iron.id}`)?.mods.spRecoveryFlat, 0.2);
+  const g = iron.mem.genericSummons.infos.find((i) => i.id === P1).group;
+  assert.equal(g.left, 2, '3 + 1 (module) − 2 placed');
+  let back = 0;
+  h.b.rng.chance = () => true; // the 90 % roll succeeds
+  h.b.kill(unitOf(h, 3)); // far: no roll
+  back = g.left;
+  h.b.kill(unitOf(h, 2)); // next to him: +1
+  assert.equal(g.left - back, 1);
+  h.run(0.2);
+  assert.ok(!iron.findBuff(`gs:nearDevice:${iron.id}`), 'no device next to him any more');
+});
+
 // =================================================================================================================
 // summons without a hand piece
 
