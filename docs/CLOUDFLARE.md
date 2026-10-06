@@ -8,7 +8,7 @@
 
 ## 为什么这样分配
 
-- 当前素材约 321 MiB（其中干员战斗语音中文 + 日文约 73 MB），拆分为约 6,800 个小文件，构建后连代码共约 8,000 个。Static Assets 的限制按文件大小 / 数量计算，当前文件均小于 25 MiB、总数低于免费计划 20,000 个文件限制。素材不计入 Worker JS 包体，也不经过房间对象。
+- 公开镜像的素材约 321 MiB（其中干员战斗语音中文 + 日文约 73 MB），约 6,800 个小文件；加上从晴猫站点复制的部分（见下节），站点共 8,953 个素材文件、431.9 MiB（2026-10），构建后连代码共约 9,200 个。Static Assets 的限制按文件大小 / 数量计算，当前文件均小于 25 MiB、总数低于免费计划 20,000 个文件限制。素材不计入 Worker JS 包体，也不经过房间对象。
 - 当前版本不需要 R2。后续若需要公开下载数百 MiB 的完整 ZIP，或资源频繁更新且需要独立生命周期，可把完整包或素材迁往 R2 并配置自定义域名 / 缓存。完整 ZIP 不能放进 Static Assets。
 - 一个房间一个 DO 保证房间事件顺序，避免多个 Worker 实例各自保有不同状态，也无需 WebRTC 的 NAT 穿透、信令与 TURN。等待房间使用 WebSocket Hibernation，活跃对局的定时器会保持实例运行。
 - Worker 包体须在免费计划的 3 MiB（gzip）以内，构建会检查。上游为回放 / 断线恢复保留历史规则版本的引擎（`replay-versions.json`、`replay-versions/`），每个约 0.7 MiB；本站没有启用历史与回放，这些版本也从没在本站运行过，所以不保留：`replay-versions.json` 为空，构建只打包当前规则（恢复一个在旧规则下开始的房间时按当前规则恢复）。同步上游时保留本站的空清单，不要提交构建生成的 `replay-versions/*.json.gz`。
@@ -20,7 +20,9 @@
 
 全部在 Cloudflare 控制台里完成：Cloudflare 从 GitHub 拉代码，构建时自动下载素材（含中文 + 日文语音），再部署到 卫.rinko.ai。游戏素材不在仓库里：`npm run build:worker`（`wrangler deploy` 的构建步骤）发现 `data/assets.json` 引用的文件不在磁盘上时，会先运行 `tools/fetch-assets.mjs` 补齐；下载失败或没有任何素材时构建直接失败，不会部署一个没有素材的站点。
 
-**3D 棋盘与局内 UI 贴图**（真实棋盘贴图、3D 棋盘的模型与材质、局内 HUD / 徽章 / 图标、表情、指南页，约 65 MiB、1,476 个文件）只能从本机安装的《明日方舟》客户端提取（`tools/local-extract/`），Cloudflare 构建环境没有客户端。所以 `wrangler.jsonc` 的构建命令先运行 `tools/fetch-local-art.mjs`，从晴猫的站点 <https://stronghold.lunar.ag> 复制他提取好的这部分：读取他的 `/data/local-assets.json` 和 `/resource-manifest.json`，逐个文件按 SHA-256 校验，全部完整才替换；他的站点不可用时只打印提示、构建照常继续，站点退回 2D 棋盘。素材不进仓库。本机自己提取过（存在 `data/local-assets.json`）时不会去下载。
+**3D 棋盘与局内 UI 贴图**（真实棋盘贴图、3D 棋盘的模型与材质、局内 HUD / 徽章 / 图标、表情、指南页，2026-10 时约 65 MiB、1,482 个文件）只能从本机安装的《明日方舟》客户端提取（`tools/local-extract/`），Cloudflare 构建环境没有客户端。所以 `wrangler.jsonc` 的构建命令先运行 `tools/fetch-local-art.mjs`，从晴猫的站点 <https://stronghold.lunar.ag> 复制他提取好的这部分：读取他的 `/data/local-assets.json` 和 `/resource-manifest.json`，逐个文件按 SHA-256 校验，全部完整才替换；他的站点不可用时只打印提示、构建照常继续，站点退回 2D 棋盘。素材不进仓库。本机自己提取过（存在 `data/local-assets.json`）时不会去下载。
+
+同一步还会从他的站点复制本仓库 `data/assets.json` 没有列出的其他素材：他的部署机器在公开镜像之外多带的界面贴图、表情、玩法说明图、BGM 和音效（2026-10 时约 46 MiB、625 个文件）。这样本站「资源管理」和资源包里的文件与他的站点一致（2026-10 时同为 8,953 个文件、431.9 MiB）。`data/assets.json` 列出的文件仍由 `tools/fetch-assets.mjs` 从公开镜像下载；已经在磁盘上的文件不会被替换；每个文件按 SHA-256 校验，个别文件失败只跳过并在日志里列出，构建照常继续。
 
 1. 打开 <https://dash.cloudflare.com>，用管理 `rinko.ai` 的账号登录。左侧 **Workers 和 Pages** → **创建** → **导入存储库（Import a repository）** → 连接 GitHub，授权仓库 `Slapq/Stronghold-Protocol`。
 2. 设置构建：
@@ -33,9 +35,9 @@
    | 部署命令 | `npx wrangler deploy`（默认值） |
    | 根目录 | `/`（默认值） |
 
-3. **保存并部署**。首次构建要安装依赖、从 GitHub 下载约 306 MiB 素材（另从晴猫站点复制约 65 MiB 本地提取贴图）、上传约 9,500 个文件，几分钟内完成（上限 20 分钟）。部署时按 `wrangler.jsonc` 自动绑定 卫.rinko.ai 并签发证书。如果日志提示自定义域名无权限或冲突：Worker → **设置** → **域和路由** → **添加** → **自定义域**，填 `卫.rinko.ai`（这个主机名事先不能有别的 DNS 记录）。
+3. **保存并部署**。首次构建要安装依赖、从 GitHub 下载约 306 MiB 素材（另从晴猫站点复制约 65 MiB 本地提取贴图和约 46 MiB 其他素材）、上传约 9,200 个文件，几分钟内完成（上限 20 分钟）。部署时按 `wrangler.jsonc` 自动绑定 卫.rinko.ai 并签发证书。如果日志提示自定义域名无权限或冲突：Worker → **设置** → **域和路由** → **添加** → **自定义域**，填 `卫.rinko.ai`（这个主机名事先不能有别的 DNS 记录）。
 4. 打开 <https://xn--rlr.rinko.ai/healthz>，看到 `{"ok":true,…}` 即部署成功。之后每次向生产分支推送都会自动重新构建、部署；素材会重新下载（约 1 分钟），但只上传有变化的文件。
-5. 发群用的素材包也在网页上做：用电脑上的 Chrome / Edge 打开 卫.rinko.ai → 右下角 **资源管理** → **在线下载** → 完成后点 **导出 ZIP（发给朋友）**，选择保存位置即可（约 385 MiB，直接写入磁盘）。其他浏览器会先在内存里生成再下载，手机上可能内存不足。朋友打开网站后在同一个窗口点 **导入本地 ZIP**。
+5. 发群用的素材包也在网页上做：用电脑上的 Chrome / Edge 打开 卫.rinko.ai → 右下角 **资源管理** → **在线下载** → 完成后点 **导出 ZIP（发给朋友）**，选择保存位置即可（约 432 MiB，直接写入磁盘）。其他浏览器会先在内存里生成再下载，手机上可能内存不足。朋友打开网站后在同一个窗口点 **导入本地 ZIP**。
 
 构建失败时先看日志：从 GitHub 下载素材偶尔会被限流或超时，直接在控制台点 **重试部署**。素材有变化（重新部署后资源版本不同）时，旧 ZIP 无法导入，需要重新导出、重新发。
 
@@ -64,7 +66,7 @@ Wrangler 执行构建、上传本地静态文件，并初始化两个 SQLite DO 
 
 ## 给朋友准备资源包
 
-完整资源包约 385 MiB（8,322 个文件，含中文 + 日文语音、3D 棋盘与局内 UI 贴图），三种拿法，内容相同（本地脚本生成的包没有 3D 棋盘与局内 UI 贴图，除非本机提取过）：
+完整资源包约 432 MiB（2026-10 时 8,953 个文件，含中文 + 日文语音、3D 棋盘与局内 UI 贴图，以及从晴猫站点复制的其他素材），三种拿法，内容相同（本地脚本生成的包没有 3D 棋盘与局内 UI 贴图和从晴猫站点复制的部分，除非本机提取过 / 自己运行过 `tools/fetch-local-art.mjs`）：
 
 1. **直接下载**：<https://xn--rlr.rinko.ai/stronghold-resources.zip>。部署时构建把资源包切成 24 MiB 的分块放进静态资源，Worker 把分块按顺序拼成一个文件返回：每次下载只算一次 Worker 请求（分块本身是免费的静态资源），支持断点续传和 Range，迅雷 / IDM / aria2 等工具可以多线程下载。文件名带资源版本，和站点当前的素材一致。
 2. **本地脚本**：Windows 双击 `scripts\make-resource-pack.bat`，macOS / Linux 运行 `scripts/make-resource-pack.sh`（或 `npm run resources:zip`）。脚本会安装依赖、从 GitHub 下载素材（中断后再次运行会续传）、在项目文件夹里生成 `stronghold-resources-<版本>.zip`。国内下载 GitHub 慢时先设置代理，例如 `set HTTPS_PROXY=http://127.0.0.1:7890`（脚本会让 Node.js 使用它）。已有完整素材时只打包：`npm run resources:pack`（输出在 `.cache/`）。

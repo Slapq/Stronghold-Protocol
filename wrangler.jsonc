@@ -15,7 +15,9 @@
   "previews": {},
   "routes": [{ "pattern": "xn--rlr.rinko.ai", "custom_domain": true }],
   // The build first copies the local-client art (3D board, autochess UI sprites, …) from 晴猫's site, which extracted it
-  // from a game client; Workers Builds has none (tools/fetch-local-art.mjs; if it fails, the 2D board is used).
+  // from a game client; Workers Builds has none (tools/fetch-local-art.mjs; if it fails, the 2D board is used). The same
+  // step copies the files his site has beyond our data/assets.json (more UI art, emoticons, BGM, sound effects), so the
+  // resource manager offers the same files as his site.
   "build": { "command": "node tools/fetch-local-art.mjs --from=https://stronghold.lunar.ag && npm run build:worker" },
   "assets": {
     "directory": "./dist/client",
