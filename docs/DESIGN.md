@@ -1124,10 +1124,11 @@ The report: "根本点不到干员。整个棋盘位于中间位置，缩放过�
   - Zoom range is 1× to `USER_ZOOM_MAX` 3×.
   - The point under the fingers stays under them.
   - The pan reaches `USER_PAN_SLACK` (30 %) of the viewport past the framing.
+  - The pinch is that pair of fingers: a third finger is ignored, and the pinch ends when one of the two lifts.
   - A piece being pressed or dragged goes home.
-  - No finger counts again until all have lifted.
+  - No finger counts again (no new pinch either) until all have lifted.
   - Any new camera request or resize resets the view.
-- **Taps in battle.** A touch picks a unit on release, within `TAP_SLOP_PX` 12. The first finger of a pinch therefore opens nothing. The mouse still picks on press.
+- **Taps in battle.** A touch picks a unit on release, when the release is within `TAP_SLOP_PX` 12 of the press. The first finger of a pinch and a swipe therefore open nothing. The mouse still picks on press.
 - **A finger on an empty tile** picks the unit whose drawn body it is on (`pickBody`).
   - The body is an upright box `BODY_HALF_W` 0.4 tile either side of the feet, from the feet to the head. The front-most unit wins.
   - This applies to prep pieces and battle allies.
@@ -1172,7 +1173,7 @@ The user's report was "整个棋盘位于中间位置，缩放过小". Beyond §
 **The engine on a slow link.**
 - `createFieldView` used to wait for its optional parts one after another: the asset manifest 4 s, fonts 1.5 s, the board art 2.5 s and the 3D board 6 s. That is 14 s, more than `ui/fieldHost.js`'s 12 s engine timeout, which then mounted the fallback and never retried.
 - Those waits now share one 4 s budget (`STARTUP_WAIT_MS`). Each part still upgrades the view in place when it lands, as the 3D board and the board art always could.
-- The engine timeout is 30 s. An engine that resolves after it is destroyed, because the fallback owns the host by then.
+- The engine gets 30 s for the whole mount — one deadline shared by the imports and the view's startup. An engine that resolves after it is destroyed, because the fallback owns the host by then.
 - Entering a room warms the render engine's modules and Pixi / pixi-spine together with the game data.
 
 **Home screen.**
