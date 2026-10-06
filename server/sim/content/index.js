@@ -56,7 +56,8 @@ export function setupUnitKit(battle, unit, mode = 'full') {
     if (typeof tk === 'function') {
       try { const k = tk(bb, raw, def); if (k) return k; } catch (e) { battle._handlerError(`tokenKit:${def.id}`, unit, e); }
     }
-    return def.skill ? genericKit(bb, raw, def) : {};
+    // a summon without a token kit: the generic kit (its skill, if any, and its generic talents — genericTalents.js)
+    return genericKit(bb, raw, def);
   }
   if (unit.kind !== 'op') return {};
   const injected = battle.opts && battle.opts.kits;
@@ -157,7 +158,7 @@ export function selectSkillSpec(kit, bb, raw, def) {
   const map = kit && kit.skills && typeof kit.skills === 'object' ? kit.skills : null;
   if (id && map && Object.prototype.hasOwnProperty.call(map, id)) return { ...kit, skill: map[id] ?? null, skillSource: 'skills' };
   if (skillIsDefault(def)) return kit;
-  const g = genericKit(bb, raw, def);
+  const g = genericKit(bb, raw, def, { talents: false });
   const own = typeof kit.install === 'function' ? kit.install : null;
   const gen = typeof g.install === 'function' ? g.install : null;
   const out = { ...kit, skill: g.skill ?? null, skillSource: 'generic' };

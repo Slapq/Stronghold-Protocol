@@ -41,6 +41,7 @@
 import { normalizeSkill } from '../simdata.js';
 import { sortEnemyTargets } from '../targeting.js';
 import { PUSH_EFFECT_SKILLS } from '../constants.js';
+import { genericTalentSpecs } from './genericTalents.js';
 
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : (typeof v === 'string' && v !== '' && Number.isFinite(+v) ? +v : undefined));
 
@@ -378,13 +379,16 @@ function installGeneric(spec) {
 }
 
 /**
- * Generic kit: `(bb, chess, def?) => Kit`. `chess` is the data record; `def` the normalised def when available.
+ * Generic kit: `(bb, chess, def?) => Kit`. `chess` is the data record; `def` the normalised def when available. Its
+ * talents are the generic ones of the def (genericTalents.js: the loadout-resolved talents and module trait addition);
+ * `opts.talents === false` leaves them out (a caller with talents of its own).
  */
-export function genericKit(bb, chess, def = null) {
+export function genericKit(bb, chess, def = null, opts = {}) {
   const sk = def?.skill ?? normalizeSkill(chess);
-  if (!sk) return { skill: null, talents: [], generic: true };
+  const talents = def && opts.talents !== false ? genericTalentSpecs(def, { token: def.type === 'token' }) : [];
+  if (!sk) return { skill: null, talents, generic: true };
   const spec = genericSkillSpec(sk, bb && Object.keys(bb).length ? bb : sk.bb, def);
-  const kit = { skill: spec, talents: [], generic: true };
+  const kit = { skill: spec, talents, generic: true };
   const inst = installGeneric(spec);
   if (inst) kit.install = inst;
   return kit;

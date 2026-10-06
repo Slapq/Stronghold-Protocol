@@ -1274,7 +1274,8 @@ function mapCharTalents(def) {
 
 /** 预备干员-医疗: generic kit (治疗强化·β型 ATK +50 %) + its stat talent. */
 function reserveMedicKit(bb, raw, def) {
-  const k = def?.skill ? genericKit(bb, raw, def) : { skill: null, talents: [] };
+  // its talent is mapCharTalents' (the generic talents of genericKit are left out: the stat would apply twice)
+  const k = def?.skill ? genericKit(bb, raw, def, { talents: false }) : { skill: null, talents: [] };
   return { ...k, talents: [...(k.talents ?? []), ...mapCharTalents(def)] };
 }
 

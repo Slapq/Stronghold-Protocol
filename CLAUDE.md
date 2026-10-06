@@ -47,7 +47,9 @@ Every brief opens with **"Facts agents get wrong"** — read that table before c
   cooldown; trigger rule `MANUAL` (renamed `NEVER`) means "the kit casts it itself". Test harness `makeBattle` sets
   `startOpCooldown: 0` (production 3 s).
 - **Kits are keyed by base chess id** (`chess_char_X_YY_a`); elites `_b` share the kit. Skill spec lookup: `kit.skills[id]` →
-  `kit.skill` (default skill only) → generic. Talents/trait/install come only from a hand kit (`generic` has `talents: []`).
+  `kit.skill` (default skill only) → generic. A hand kit authors all its talents/trait/install; a chess WITHOUT a kit gets
+  generic talents derived from its (loadout-resolved) talent texts + module trait addition (`content/genericTalents.js`,
+  `talentCoverage(def)` lists what is applied and dropped).
 - **Stat stacking**: ATK% from all sources is summed (`atkPct`), only `*Mul` keys multiply; one buff instance per key.
 - **Elite = golden = `_a` → `_b`**; merges use `goldenIdOf`, not `upgradeChessId` (that field is for items).
 - **外援 / 甄选 (DIY)**: 87 candidates live only in `data/waiguan.json` (never in chess.json); tier V records are 9-field
@@ -102,6 +104,7 @@ node tools/kit-coverage.mjs --missing    # which selectable skills lack a hand-a
 - 外援 core bugs under repair on `claude/waiguan-complete`: picks never rolled in the owner's shop (PlayerState rolls without
   `playerId`), `Match.setPicks` checks a non-existent `PHASE.BAND_CHECK`, checkpoints do not log `setPicks`, bot 甄选 filters read
   missing fields, the browser's in-match chess lookup lacks 外援 records, picks not synced to accounts.
-- No 外援 operator has a hand-authored kit yet (all skills generic, no talents); no 外援 module data.
+- No 外援 operator has a hand-authored kit yet: skills generic, talents generic (`content/genericTalents.js`: ≈ two thirds of
+  the talent texts; mechanics like 魔力 / 能量 / 我执 / 命中率 / faction groups are dropped, see `talentCoverage`); no 外援 module data.
 - Stale docs: DESIGN.md §2 client file list, DATA.md:3 (not all data is from build-data), asset counts in ASSETS.md,
   `docs/CONTENT.md` referenced by server/sim/content/support/index.js does not exist.
