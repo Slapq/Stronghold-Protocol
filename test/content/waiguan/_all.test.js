@@ -34,13 +34,34 @@ test('外援 kits: every registered operator covers every skill × module of bot
   }
 });
 
+/**
+ * The summon pieces a player gets with this loadout and places (server/match/gamedata.js placeableTokens: tokens.json
+ * `placeable` summons whose owner variant — `bySkill[skillIndex]` for the selected skill — names a talent or a skill), one
+ * each, on free tiles in front of the operator: a skill bound to its summon (凯尔希 S2/S3 "该技能与Mon3tr绑定") casts only
+ * with it on the field.
+ */
+const PIECE_TILES = [[10, 6], [10, 7], [9, 6], [11, 7]];
+function summonPieces(id, skillIndex) {
+  const out = [];
+  for (const tid of REC[id].tokens ?? []) {
+    const t = DATA.tokens?.[tid];
+    if (!t || t.kind !== 'summon' || t.placeable !== true) continue;
+    const v = t.variants?.[id] ?? t.variants?.[id.replace(/_b$/, '_a')] ?? null;
+    const src = v?.bySkill?.[skillIndex]?.sources ?? v?.sources ?? [];
+    if (!src.includes('talent') && !src.includes('skill')) continue;
+    const tile = PIECE_TILES[out.length];
+    if (tile) out.push({ uid: 10 + out.length, kind: 'token', tokenId: tid, ownerUid: 1, row: tile[0], col: tile[1] });
+  }
+  return out;
+}
+
 test('外援 kits: every skill of every authored operator (T6 normal + elite) survives a real wave and casts', () => {
   for (const c of DATA.waiguan.candidates.filter((x) => authored.has(x.charId))) {
     const base = REC[c.chessIds[6]];
     for (const id of [base.chessId, base.goldenId]) {
       for (const s of REC[id].skills) {
         const h = makeBattle({ defs: { chess: REC }, seed: 3, timeLimit: 60,
-          units: [{ chessId: id, row: 10, col: 4, skillIndex: s.index, carryState: { sp: 999 } }, { chessId: 'chess_char_1_01_a', row: 9, col: 4 }, { chessId: 'chess_char_2_06_a', row: 11, col: 5 }],
+          units: [{ uid: 1, chessId: id, row: 10, col: 4, skillIndex: s.index, carryState: { sp: 999 } }, { uid: 2, chessId: 'chess_char_1_01_a', row: 9, col: 4 }, { uid: 3, chessId: 'chess_char_2_06_a', row: 11, col: 5 }, ...summonPieces(id, s.index)],
           enemies: [{ key: 'enemy_1007_slime', count: 8, interval: 1.5 }, { key: 'enemy_1007_slime', route: 1, count: 8, interval: 1.5, time: 3 }] });
         h.runToEnd(90);
         checkInvariants(h.b);

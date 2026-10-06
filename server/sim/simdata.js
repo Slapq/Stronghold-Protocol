@@ -8,7 +8,9 @@
 //                  fallback (docs/research/03-operators.json, 05-enemies.json, 05-maps.json), loaded by ./nodeData.js
 //                  so the sim and its tests work before/without generated data;
 //        browser — whatever the page injected with `setSimData(data)` (the fetched /data/*.json, DESIGN §14).
-// Both the research record shapes and the build-data shapes (docs/DATA.md) are accepted.
+// Both the research record shapes and the build-data shapes (docs/DATA.md) are accepted. A source built from data that
+// carries `waiguan` (data/waiguan.json) also resolves the 外援 / 甄选 operators (DESIGN §27): the Node default source,
+// every Match (dataSourceFor), the browser runner (SIM_DATA_FILES) and the Worker's replay / recovery engines.
 //
 // Operator loadouts (DESIGN §16, DATA.md §2.2): `getChess(id, { skillIndex, moduleId })` resolves the def of a chess
 // with the selected skill (def.skill / its blackboard / trigger) and — elite only — module (stats = statsBase + attr,
@@ -25,6 +27,7 @@
 //   getSimData()      the injected data (browser) or the generated data (Node), or null.
 
 import { resolveRecordLoadout, composeStats, composeTalents, loadoutRecord } from '../../shared/loadoutRecord.js';
+import { waiguanRecords } from '../../shared/waiguan.js';
 import { normHitArea } from './body.js';
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -512,9 +515,19 @@ export function freezeDef(d) {
  * A DataSource resolves ids to normalised defs. `raw` is `{ chess, enemies, tokens, stages, waves }`.
  */
 export class DataSource {
+  /**
+   * @param {object} raw `{ chess, enemies, tokens, stages, waves, waiguan? }` — with `waiguan` (data/waiguan.json) the
+   *   外援 / 甄选 records (tier V and VI, normal and elite: shared/waiguan.js waiguanRecords) resolve like any chess:
+   *   a battle fields whatever operator a player picked (DESIGN §27). They are the same records for every player, so
+   *   one source (and its cached frozen defs) serves every match.
+   * @param {DataSource|null} [fallback]
+   */
   constructor(raw = {}, fallback = null) {
+    const chess = asMap(unwrap(raw.chess, 'chess'), 'chessId') ?? {};
+    const diy = raw.waiguan && typeof raw.waiguan === 'object' ? waiguanRecords(raw.waiguan) : null;
     this.raw = {
-      chess: asMap(unwrap(raw.chess, 'chess'), 'chessId') ?? {},
+      // the pool's own records win over a 甄选 record of the same id (the ids never overlap: chess_char_diy_*)
+      chess: diy && Object.keys(diy).length ? { ...diy, ...chess } : chess,
       enemies: asMap(unwrap(raw.enemies, 'enemies'), 'key') ?? {},
       tokens: asMap(unwrap(raw.tokens, 'tokens'), 'tokenId') ?? {},
       stages: asMap(unwrap(raw.stages, 'stages'), 'id') ?? {},

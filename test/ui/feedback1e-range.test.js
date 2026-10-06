@@ -157,6 +157,9 @@ test('prep: the record\'s attack range (card without a live entry, board overlay
   const wider = new Set();
   for (const c of Object.values(C)) {
     if (!(c.visible || (c.isGolden && C[c.baseId]?.visible))) continue;
+    // the shop pool's operators: the default source also resolves the 外援 / 甄选 records (DESIGN §27), whose kits are
+    // their own work stream (3 of them — 涤火杰西卡 with 003, 夜莺, Pith — still differ here, 15 of 2402 loadouts)
+    if (c.isDiy) continue;
     const skills = (c.skills || []).length ? c.skills.map((s) => s.index) : [null];
     const mods = [null, ...(Array.isArray(c.modules) && c.modules.length ? ['none', ...c.modules.map((m) => m.uniEquipId)] : [])];
     for (const si of skills) for (const mid of mods) {
