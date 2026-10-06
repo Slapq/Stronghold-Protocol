@@ -392,6 +392,14 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;11. Tools | 1261–1267 | 487 B |
 | &nbsp;&nbsp;12. Data notes (simdata.js) | 1268–1293 | 2.8 KB |
 
+## WAIGUAN-KITS.md (5.8 KB, 63 lines)
+
+| Section | Lines | Size |
+|---|---|---|
+| 外援 kits — owner rules and kit conventions | 1–63 | 5.8 KB |
+| &nbsp;&nbsp;REQUIREMENTS (owner's rules) | 8–33 | 2.6 KB |
+| &nbsp;&nbsp;KIT_CONVENTIONS (from the kit reviews) | 34–63 | 2.7 KB |
+
 ## WINDOWS.md (9.9 KB, 123 lines)
 
 | Section | Lines | Size |
