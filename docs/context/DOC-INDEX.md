@@ -20,12 +20,12 @@ higher level). Read one section with `sed -n '<from>,<to>p' docs/<FILE>`.
 | &nbsp;&nbsp;独立备份与恢复 | 104–123 | 2.9 KB |
 | &nbsp;&nbsp;验证命令 | 124–133 | 730 B |
 
-## ANDROID.md (6.3 KB, 106 lines)
+## ANDROID.md (6.4 KB, 106 lines)
 
 | Section | Lines | Size |
 |---|---|---|
-| 安卓应用 | 1–106 | 6.3 KB |
-| &nbsp;&nbsp;选择服务器 | 11–22 | 598 B |
+| 安卓应用 | 1–106 | 6.4 KB |
+| &nbsp;&nbsp;选择服务器 | 11–22 | 600 B |
 | &nbsp;&nbsp;素材怎么用 | 23–37 | 1.1 KB |
 | &nbsp;&nbsp;构建 | 38–56 | 1.3 KB |
 | &nbsp;&nbsp;签名 | 57–75 | 828 B |
