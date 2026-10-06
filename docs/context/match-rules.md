@@ -154,7 +154,7 @@ Scope: the authoritative match engine: phases, rounds, drafts, shop/pool/merges,
 - Flow:
   1. `room.pick` → `checkWaiguanPicks` (shared/protocol.js:110: a known slot and a real candidate, never one operator in both slots of one tier).
   2. The pick is stored on the session and seat (lobby.js:922-945). `startMatch` passes `seats[].picks` (humans only, lobby.js:959).
-  3. `Match` merges only the picked records into this match's GameData (Match.js:349-357) and adds owner pool entries (:446-475). Bots get `botWaiguanPicks` (:291).
+  3. `Match` merges only the picked records into this match's GameData (Match.js:349-357) and adds owner pool entries (:446-475). Bots get `botWaiguanPicks` (:291). Verified gap: `waiguanChessPatch` (:260) merges the NORMAL record only, so `gd.goldenIdOf` is null for a pick (three copies never merge) and `PlayerState.setLoadout` refuses a whole loadout that names a 外援 module (`checkLoadout` finds no elite; probe 2026-10-06).
   4. `setPicks` later: section 1, item 2. `releaseWaiguanCopies` returns copies when a slot changes (:647).
 - Loadout: a 甄选 chess is a valid loadout target, widened by the player's own picks (`waiguanChessOf` lobby.js:160, used at :893).
 

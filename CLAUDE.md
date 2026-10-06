@@ -104,7 +104,9 @@ node tools/kit-coverage.mjs --missing    # which selectable skills lack a hand-a
   `Match.ds`, browser runner, Worker replay/recovery engines — lacks the waiguan records and `Battle` silently skips unknown
   chess), picks never rolled in the owner's shop (PlayerState rolls without `playerId`), `Match.setPicks` checks a
   non-existent `PHASE.BAND_CHECK`, checkpoints do not log `setPicks`, bot 甄选 filters read missing fields, the browser's
-  in-match chess lookup lacks 外援 records, picks not synced to accounts.
+  in-match chess lookup lacks 外援 records, picks not synced to accounts, the match merges only a pick's normal record
+  (`waiguanChessPatch`): no elite (three copies never merge) and a loadout naming a 外援 module is refused WHOLE by
+  `PlayerState.setLoadout` (pool entries included).
 - 外援 kits: being hand-authored one file per operator (`server/sim/content/kits/waiguan/`); the rest still run generic skills
   and no talents. Modules: every 外援 elite carries its operator's modules at its slot's level (85/87 active; tier V level 1,
   tier VI level 3; fixed 2026-10-06, the tier V elites used to carry level 3); kits must read module numbers from the record.
